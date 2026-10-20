@@ -1,0 +1,17 @@
+{
+ "qianfan": {
+  "label": "千帆星座",
+  "sub": "QIANFAN · 上海垣信",
+  "color": "#f5a524"
+ },
+ "gw": {
+  "label": "国网 / 星网 GW 星座",
+  "sub": "HULIANWANG DIGUI · 中国星网",
+  "color": "#3b9dff"
+ },
+ "gaogui": {
+  "label": "星网高轨（同步轨道）",
+  "sub": "卫星互联网高轨卫星 01/02/03 星",
+  "color": "#ef4444"
+ }
+}

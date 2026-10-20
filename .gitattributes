@@ -1,0 +1,22 @@
+# 换行符策略
+# shell / Python / 前端一律 LF；**Windows 的 .bat 必须是 CRLF** ——
+# cmd.exe 用 LF-only 的批处理会错乱解析（rem 行里的词被当命令执行、脚本半路崩、
+# 用户看到「双击没反应」）。这个坑在本工程踩过，所以写死。
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制（别做换行符转换，也别尝试 diff）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.pyd binary
+*.zip binary
+
+# 生成物在 diff 里静音（大图内嵌了全部逐日点，一行几十万字符）
+web/raise/*.html linguist-generated=true

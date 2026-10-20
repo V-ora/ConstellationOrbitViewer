@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script src="../../pages_shim.js"></script>
+
+<title>单星轨道爬升图</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;background:#f2f5f9;color:#1b2430;
+       display:flex;flex-direction:column}
+  header{padding:18px 26px 8px}
+  h1{margin:0;font-size:20px;letter-spacing:.4px}
+  h1 .nn{color:#5b6675;font-weight:400;font-size:13px;margin-left:10px}
+  .sub{margin-top:5px;font-size:12.5px;color:#5b6675}
+  .stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+  .chip{background:#fff;border:1px solid #d8e0ea;border-radius:16px;padding:4px 12px;font-size:12px;color:#33415c}
+  .chip b{font-size:12.5px}
+  .chip.ok{border-color:#2fa06a;color:#217a52;background:#f0faf5}
+  .chip.rising{border-color:#e8791e;color:#b05a10;background:#fdf5ec}
+  .chip.stuck{border-color:#d43f3f;color:#a32e2e;background:#fdf0f0}
+  .wrap{flex:1;margin:6px 20px 14px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(20,40,80,.08);
+        padding:10px;position:relative;min-height:0}
+  canvas{width:100%;height:100%;display:block;border-radius:8px;cursor:crosshair}
+  #tip{position:fixed;pointer-events:none;background:rgba(20,30,45,.95);color:#fff;font-size:12.5px;line-height:1.6;
+       padding:8px 12px;border-radius:8px;display:none;z-index:50;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+  #msg{margin:auto;text-align:center;color:#5b6675;font-size:14px;line-height:2}
+  #msg .big{font-size:40px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">加载中…</h1>
+  <div class="sub" id="sub"></div>
+  <div class="stats" id="stats"></div>
+</header>
+<div class="wrap">
+  <canvas id="cv"></canvas>
+  <div id="msg" style="display:none"></div>
+</div>
+<div id="tip"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const BASE_MS = null;   // 从接口取
+let H = null;           // 接口数据
+let hoverI = -1;
+
+function baseMs(){ const p = H.base.split("-").map(Number); return Date.UTC(p[0], p[1] - 1, p[2]); }
+function tToDate(t){ const d = new Date(baseMs() + t * 86400000); return d; }
+function fmtDate(d){ return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0") + "-" + String(d.getUTCDate()).padStart(2,"0"); }
+
+function showMsg(html){ $("msg").innerHTML = html; $("msg").style.display = "block"; $("cv").style.display = "none"; }
+
+async function load(){
+  // 兼容 ?norad=（主页联动用）与 #norad=（手动分享用）
+  const m = location.search.match(/norad=(\d+)/) || location.hash.match(/norad=(\d+)/i);
+  if (!m) { fail("地址里没有 norad 参数。"); return; }
+  try {
+    const r = await fetch("/api/sat_hist?norad=" + m[1]);
+    if (r.status === 404) { fail("暂无这颗卫星（NORAD " + m[1] + "）的爬升历史。<br>" +
+      "数据目前覆盖千帆与国网低轨共 443 颗；高轨卫星不适用爬升图。"); return; }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    H = await r.json();
+  } catch (e) { fail("加载失败：" + e.message); return; }
+  render();
+}
+
+// hash 变化时（同文档导航）也重新加载
+window.addEventListener("hashchange", () => {
+  $("msg").style.display = "none"; $("cv").style.display = ""; hoverI = -1;
+  load();
+});
+
+function fail(html){ 
+  $("title").textContent = "单星轨道爬升图";
+  showMsg("<div class='big'>🛰️</div><div>" + html + "</div>");
+}
+
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function reachedDate(){
+  if (!H.target) return null;
+  const th = H.target - 2;
+  for (const p of H.pts) if (p[1] >= th) return p[0];
+  return null;
+}
+
+function render(){
+  const pts = H.pts;
+  const name = H.name || ("NORAD " + H.norad);
+  document.title = name + " 轨道爬升图";
+  $("title").innerHTML = esc(name) + "<span class='nn'>NORAD " + esc(H.norad) + "</span>";
+  const grp = H.src === "qianfan" ? "千帆星座" : ("国网低轨" + (H.shell ? " · " + H.shell : ""));
+  $("sub").textContent = grp + " · " + pts.length + " 个观测点 · 数据截至 " + (H.now || "—") + " · 来源 CelesTrak";
+
+  const first = pts[0], last = pts[pts.length - 1];
+  const rd = reachedDate();
+  const ok = H.status && H.status.indexOf("已抵达") >= 0;
+  const daysSinceLaunch = H.launch ? (Date.now() - Date.parse(H.launch + "T00:00:00Z")) / 86400000 : 0;
+  let chips = "";
+  chips += "<span class='chip'>发射 <b>" + esc(H.launch || "—") + "</b></span>";
+  chips += "<span class='chip'>当前高度 <b>" + last[1].toFixed(1) + " km</b></span>";
+  if (H.target) chips += "<span class='chip'>工作轨道 <b>" + H.target.toFixed(1) + " km</b></span>";
+  if (rd != null) chips += "<span class='chip " + (ok ? "ok" : "rising") + "'>" +
+    (ok ? "已抵达工作轨道" : "进入工作轨道高度") + " <b>" + esc(fmtDate(tToDate(rd))) + "</b></span>";
+  else if (daysSinceLaunch > 365) chips += "<span class='chip stuck'>未正常升轨（发射已 " + Math.round(daysSinceLaunch) + " 天）</span>";
+  else chips += "<span class='chip rising'>爬升中</span>";
+  $("stats").innerHTML = chips;
+
+  draw();
+  window.addEventListener("resize", draw);
+  const cv = $("cv");
+  cv.addEventListener("mousemove", onMove);
+  cv.addEventListener("mouseleave", () => { hoverI = -1; $("tip").style.display = "none"; draw(); });
+}
+
+function layout(cv){
+  const W = cv.clientWidth, Ht = cv.clientHeight;
+  const L = 64, R = 18, T = 18, B = 40;
+  return { W, H: Ht, L, R, T, B, pw: W - L - R, ph: Ht - T - B };
+}
+
+function draw(){
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, Ht = cv.clientHeight;
+  if (!W || !Ht) return;
+  cv.width = W * dpr; cv.height = Ht * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, Ht);
+
+  const g = layout(cv);
+  const pts = H.pts;
+  const t0 = pts[0][0], t1 = Math.max(pts[pts.length - 1][0], t0 + 1);
+  let a0 = Infinity, a1 = -Infinity;
+  for (const p of pts){ if (p[1] < a0) a0 = p[1]; if (p[1] > a1) a1 = p[1]; }
+  if (H.target){ a0 = Math.min(a0, H.target); a1 = Math.max(a1, H.target); }
+  const padY = Math.max((a1 - a0) * 0.12, 4);
+  a0 -= padY; a1 += padY;
+  const X = t => g.L + (t - t0) / (t1 - t0) * g.pw;
+  const Y = a => g.T + (a1 - a) / (a1 - a0) * g.ph;
+
+  ctx.font = "11px 'Microsoft YaHei',sans-serif";
+  // 横向网格 + 高度刻度
+  ctx.strokeStyle = "#eef2f7"; ctx.fillStyle = "#8a94a6";
+  ctx.lineWidth = 1; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++){
+    const a = a0 + (a1 - a0) * i / 4, y = Y(a);
+    ctx.beginPath(); ctx.moveTo(g.L, y); ctx.lineTo(g.W - g.R, y); ctx.stroke();
+    ctx.fillText(a.toFixed(0), g.L - 8, y);
+  }
+  // 纵向日期刻度
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const NT = Math.min(7, Math.max(3, Math.floor(g.pw / 130)));
+  for (let i = 0; i <= NT; i++){
+    const t = t0 + (t1 - t0) * i / NT, x = X(t);
+    ctx.strokeStyle = "#eef2f7";
+    ctx.beginPath(); ctx.moveTo(x, g.T); ctx.lineTo(x, g.T + g.ph); ctx.stroke();
+    ctx.fillStyle = "#8a94a6";
+    // 首末刻度贴边对齐，避免文字被画布边缘截断
+    ctx.textAlign = i === 0 ? "left" : (i === NT ? "right" : "center");
+    ctx.fillText(fmtDate(tToDate(t)), i === 0 ? g.L : (i === NT ? g.W - g.R : x), g.T + g.ph + 8);
+  }
+  // 工作轨道虚线
+  if (H.target){
+    const y = Y(H.target);
+    ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = "#2fa06a"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(g.L, y); ctx.lineTo(g.W - g.R, y); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = "#2fa06a"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("工作轨道 " + H.target.toFixed(1) + " km", g.L + 6, y - 3);
+  }
+  // 主曲线
+  const col = H.src === "qianfan" ? "#2f6fd0" : "#1F6FB2";
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i++){
+    const x = X(pts[i][0]), y = Y(pts[i][1]);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.stroke();
+  // 发射点标记
+  ctx.fillStyle = "#c9701a";
+  ctx.beginPath(); ctx.arc(X(pts[0][0]), Y(pts[0][1]), 4, 0, 7); ctx.fill();
+  ctx.fillStyle = "#8a5a14"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText("入轨 " + pts[0][1].toFixed(1) + " km", X(pts[0][0]) + 7, Y(pts[0][1]) - 2);
+  // 悬停十字线
+  if (hoverI >= 0 && hoverI < pts.length){
+    const x = X(pts[hoverI][0]), y = Y(pts[hoverI][1]);
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, g.T); ctx.lineTo(x, g.T + g.ph); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  cv._geom = { g, X, Y, t0, t1 };
+}
+
+/* ---- 悬停提示自适应定位（2026-10-10）-----------------------------------
+   早前这里是 Math.min(clientX + 14, innerWidth - 170) 这类「估一个最大宽度」的钳制，
+   鼠标贴到图右侧或下边缘时提示框仍会被窗口裁掉。
+   现在按提示框实测尺寸摆放：默认贴鼠标右下；右侧装不下整框就翻到鼠标左侧，
+   下方装不下就翻到上方；仍超出（框比视口还大）时最后夹住，保证整框始终可见。 */
+function placeTip(tip, cx, cy, dx, dy){
+  if (dx == null) dx = 14;
+  if (dy == null) dy = 14;
+  const m = 8;                                   // 与视口边缘的最小间距
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = cx + dx;                            // 默认：鼠标右侧
+  if (left + w > vw - m) left = cx - w - dx;     // 右侧装不下 → 翻到左侧
+  if (left < m) left = m;                        // 左侧也越界（鼠标在视口外）→ 贴左
+  if (left + w > vw - m) left = Math.max(m, vw - w - m);   // 仍旧超出（框很宽）→ 贴右
+  let top = cy + dy;                             // 默认：鼠标下方
+  if (top + h > vh - m) {                        // 下方装不下
+    const up = cy - h - dy;
+    top = (up >= m) ? up : Math.max(m, (vh - h) / 2);      // 放得下就翻上去，否则尽量垂直居中
+  }
+  if (top < m) top = m;                          // 上方越界（鼠标在视口外）→ 贴顶
+  if (top + h > vh - m) top = Math.max(m, vh - h - m);     // 仍旧超出（框很高）→ 贴底
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+
+function onMove(e){
+  const cv = $("cv"); if (!cv._geom) return;
+  const { g, X, Y, t0, t1 } = cv._geom;
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left;
+  if (mx < g.L - 4 || mx > g.W - g.R + 4) return;
+  const t = t0 + (mx - g.L) / g.pw * (t1 - t0);
+  const pts = H.pts;
+  let bi = 0, bd = Infinity;
+  for (let i = 0; i < pts.length; i++){
+    const d = Math.abs(pts[i][0] - t);
+    if (d < bd){ bd = d; bi = i; }
+  }
+  if (hoverI !== bi){ hoverI = bi; draw(); }
+  const p = pts[bi];
+  const days = Math.round((p[0] - pts[0][0]) * 4) / 4;
+  const tip = $("tip");
+  tip.innerHTML = "<b>" + fmtDate(tToDate(p[0])) + "</b> · 在轨第 " + days + " 天<br>高度 <b>" + p[1].toFixed(1) + " km</b>";
+  tip.style.display = "block";
+  placeTip(tip, e.clientX, e.clientY);
+}
+
+load();
+</script>
+</body>
+</html>

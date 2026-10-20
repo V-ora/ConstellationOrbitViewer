@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>组次轨道爬升叠加图</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;background:#f2f5f9;color:#1b2430;
+       display:flex;flex-direction:column}
+  header{padding:16px 26px 6px}
+  /* 嵌入 App 时，父页面在 iframe 顶部右侧压了两排按钮（「正在查看」条+页签条、轨迹/覆盖圆排），
+     顶部留白加大到 90px 让标题完全躲开（用户反馈 2026-09-30：右上角仍有遮挡） */
+  body.emb header{padding-top:90px}
+  h1{margin:0;font-size:20px;letter-spacing:.4px}
+  h1 .nn{color:#5b6675;font-weight:400;font-size:13px;margin-left:10px}
+  .sub{margin-top:5px;font-size:12.5px;color:#5b6675}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;padding:0 26px}
+  .chip{background:#fff;border:1px solid #d8e0ea;border-radius:14px;padding:3px 11px;font-size:11.5px;color:#33415c;
+        cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
+  .chip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .chip.off{opacity:.38}
+  .chip.target{cursor:default;border-style:dashed}
+  .wrap{flex:1;margin:8px 20px 14px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(20,40,80,.08);
+        padding:10px;position:relative;min-height:0}
+  canvas{width:100%;height:100%;display:block;border-radius:8px;cursor:crosshair}
+  #tip{position:fixed;pointer-events:none;background:rgba(20,30,45,.95);color:#fff;font-size:12px;line-height:1.6;
+       padding:8px 12px;border-radius:8px;display:none;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.25);max-height:60vh;overflow:hidden}
+  #msg{margin:auto;text-align:center;color:#5b6675;font-size:14px;line-height:2}
+  #msg .big{font-size:40px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">加载中…</h1>
+  <div class="sub" id="sub"></div>
+</header>
+<div class="legend" id="legend"></div>
+<div class="wrap">
+  <canvas id="cv"></canvas>
+  <div id="msg" style="display:none"></div>
+</div>
+<div id="tip"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const PALETTE = ["#e8890c","#2f7ddd","#22c55e","#ef4444","#9333ea","#0891b2",
+                 "#d97706","#db2777","#65a30d","#4f46e5","#0d9488","#b45309"];
+let H = null;            // 接口数据
+let series = [];         // [{name,color,pts,target,visible}]
+let hoverT = null;       // 悬停日期（天，相对 base）
+
+const qm = location.search.match(/[?&]group=([a-z_]+)/i) || location.hash.match(/group=([a-z_]+)/i);
+const qb = location.search.match(/[?&]batch=([^&]+)/) || location.hash.match(/batch=([^&]+)/);
+const GROUP = qm ? qm[1] : "";
+const BATCH = qb ? decodeURIComponent(qb[1]) : "";
+
+// 被App以iframe嵌入时加顶部留白（独立打开时保持原版式）
+if (window.parent && window.parent !== window) document.body.classList.add("emb");
+
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function baseMs(){ const p = H.base.split("-").map(Number); return Date.UTC(p[0], p[1] - 1, p[2]); }
+function tToDate(t){ return new Date(baseMs() + t * 86400000); }
+function fmtDate(d){ return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0") + "-" + String(d.getUTCDate()).padStart(2,"0"); }
+
+function showMsg(html){ $("msg").innerHTML = html; $("msg").style.display = "block"; $("cv").style.display = "none"; }
+
+async function load(){
+  if (!GROUP || !BATCH) { fail("地址里缺少 group / batch 参数。"); return; }
+  try {
+    const r = await fetch("/api/batch_hist?group=" + encodeURIComponent(GROUP) +
+                          "&batch=" + encodeURIComponent(BATCH));
+    if (r.status === 404) { fail("该组次暂无爬升历史数据。<br>爬升历史由程序自动从 CelesTrak 补齐（每天检查一次）：新发射的卫星要等 CelesTrak 积累几天历元，之后曲线会自动出现，无需任何操作。"); return; }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    H = await r.json();
+  } catch (e) { fail("加载失败：" + e.message); return; }
+  render();
+}
+
+function render(){
+  document.title = H.label + " 轨道爬升（叠加）";
+  $("title").innerHTML = esc(H.label) +
+    "<span class='nn'>COSPAR " + esc(H.batch) + "（编号，非日期） · " + H.count + " 颗叠加</span>";
+  $("sub").textContent = "组次轨道爬升叠加图 · 数据截至 " + (H.now || "—") +
+    " · 每条曲线为一颗卫星的实测高度演化 · 来源 CelesTrak";
+  series = H.sats.map((s, i) => ({
+    name: s.name, norad: s.norad, pts: s.pts, target: s.target,
+    color: PALETTE[i % PALETTE.length],
+    visible: true,
+  }));
+  renderLegend();
+  draw();
+  window.addEventListener("resize", draw);
+  const cv = $("cv");
+  cv.addEventListener("mousemove", onMove);
+  cv.addEventListener("mouseleave", () => { hoverT = null; $("tip").style.display = "none"; draw(); });
+}
+
+function renderLegend(){
+  // 主控 chip：全部可见时点一下全不选，有隐藏时点一下全选（用户要求 2026-09-30）
+  let html = "<span class='chip' id='chipAll' style='font-weight:650'></span>";
+  for (const s of series)
+    html += "<span class='chip' data-n='" + esc(s.norad) + "'><span class='dot' style='background:" + s.color + "'></span>" +
+            esc(s.name) + "</span>";
+  // 目标轨道高度图例（去重）
+  const targets = [...new Set(series.filter(s => s.target).map(s => s.target.toFixed(0)))];
+  if (targets.length)
+    html += "<span class='chip target'><span class='dot' style='background:#2fa06a'></span>工作轨道 " + esc(targets.join(" / ")) + " km</span>";
+  html += "<span class='chip' style='border-style:dashed;color:#5b6675'>点击图例可隐藏 / 显示单星</span>";
+  $("legend").innerHTML = html;
+  const syncAllChips = () => {
+    const anyOff = series.some(s => !s.visible);
+    $("chipAll").textContent = anyOff ? "☑ 全选" : "✕ 全不选";
+    for (const el of $("legend").querySelectorAll(".chip[data-n]")) {
+      const s = series.find(x => x.norad === el.dataset.n);
+      if (s) el.classList.toggle("off", !s.visible);
+    }
+  };
+  $("legend").addEventListener("click", (e) => {
+    if (e.target.closest("#chipAll")) {
+      const anyOff = series.some(s => !s.visible);
+      for (const s of series) s.visible = anyOff;
+      syncAllChips(); draw();
+      return;
+    }
+    const c = e.target.closest(".chip[data-n]"); if (!c) return;
+    const s = series.find(x => x.norad === c.dataset.n); if (!s) return;
+    s.visible = !s.visible;
+    syncAllChips();
+    draw();
+  });
+  syncAllChips();
+}
+
+function fail(html){
+  $("title").textContent = "组次轨道爬升叠加图";
+  showMsg("<div class='big'>🛰️</div><div>" + html + "</div>");
+}
+
+function layout(cv){
+  const W = cv.clientWidth, Ht = cv.clientHeight;
+  const L = 64, R = 18, T = 18, B = 40;
+  return { W, H: Ht, L, R, T, B, pw: W - L - R, ph: Ht - T - B };
+}
+
+function draw(){
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, Ht = cv.clientHeight;
+  if (!W || !Ht) return;
+  cv.width = W * dpr; cv.height = Ht * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, Ht);
+  if (!series.length) return;
+
+  const g = layout(cv);
+  // 时间轴：全部曲线的并集
+  let t0 = Infinity, t1 = -Infinity, a0 = Infinity, a1 = -Infinity;
+  for (const s of series) {
+    if (!s.visible || !s.pts.length) continue;
+    if (s.pts[0][0] < t0) t0 = s.pts[0][0];
+    if (s.pts[s.pts.length-1][0] > t1) t1 = s.pts[s.pts.length-1][0];
+    for (const p of s.pts){ if (p[1] < a0) a0 = p[1]; if (p[1] > a1) a1 = p[1]; }
+  }
+  for (const s of series) if (s.visible && s.target){ a0 = Math.min(a0, s.target); a1 = Math.max(a1, s.target); }
+  if (!isFinite(t0)) return;
+  t1 = Math.max(t1, t0 + 1);
+  const padY = Math.max((a1 - a0) * 0.12, 4);
+  a0 -= padY; a1 += padY;
+  const X = t => g.L + (t - t0) / (t1 - t0) * g.pw;
+  const Y = a => g.T + (a1 - a) / (a1 - a0) * g.ph;
+  cv._geom = { g, X, Y, t0, t1 };
+
+  ctx.font = "11px 'Microsoft YaHei',sans-serif";
+  // 横向网格 + 高度刻度
+  ctx.strokeStyle = "#eef2f7"; ctx.fillStyle = "#8a94a6";
+  ctx.lineWidth = 1; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++){
+    const a = a0 + (a1 - a0) * i / 4, y = Y(a);
+    ctx.beginPath(); ctx.moveTo(g.L, y); ctx.lineTo(g.W - g.R, y); ctx.stroke();
+    ctx.fillText(a.toFixed(0), g.L - 8, y);
+  }
+  // 纵向日期刻度
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const NT = Math.min(7, Math.max(3, Math.floor(g.pw / 130)));
+  for (let i = 0; i <= NT; i++){
+    const t = t0 + (t1 - t0) * i / NT, x = X(t);
+    ctx.strokeStyle = "#eef2f7";
+    ctx.beginPath(); ctx.moveTo(x, g.T); ctx.lineTo(x, g.T + g.ph); ctx.stroke();
+    ctx.fillStyle = "#8a94a6";
+    ctx.textAlign = i === 0 ? "left" : (i === NT ? "right" : "center");
+    ctx.fillText(fmtDate(tToDate(t)), i === 0 ? g.L : (i === NT ? g.W - g.R : x), g.T + g.ph + 8);
+  }
+  // 目标轨道虚线（去重）
+  const seenT = {};
+  for (const s of series){
+    if (!s.visible || !s.target || seenT[s.target.toFixed(0)]) continue;
+    seenT[s.target.toFixed(0)] = 1;
+    const y = Y(s.target);
+    ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = "#2fa06a"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(g.L, y); ctx.lineTo(g.W - g.R, y); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = "#2fa06a"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("工作轨道 " + s.target.toFixed(1) + " km", g.L + 6, y - 3);
+  }
+  // 入轨点标记（每颗的起点）
+  for (const s of series){
+    if (!s.visible || !s.pts.length) continue;
+    ctx.fillStyle = s.color;
+    ctx.beginPath(); ctx.arc(X(s.pts[0][0]), Y(s.pts[0][1]), 3.2, 0, 7); ctx.fill();
+  }
+  // 主曲线（叠加）
+  ctx.lineJoin = "round";
+  for (const s of series){
+    if (!s.visible || !s.pts.length) continue;
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (let i = 0; i < s.pts.length; i++){
+      const x = X(s.pts[i][0]), y = Y(s.pts[i][1]);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // 悬停竖线
+  if (hoverT != null){
+    const x = X(hoverT);
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, g.T); ctx.lineTo(x, g.T + g.ph); ctx.stroke(); ctx.restore();
+  }
+}
+
+/* ---- 悬停提示自适应定位（2026-10-10）-----------------------------------
+   早前这里是 Math.min(clientX + 14, innerWidth - 200) 这类「估一个最大宽度」的钳制，
+   可组次叠加图的提示框最多 14 行、比估的宽，鼠标又常停在图右侧/下方，
+   于是整框被窗口边缘裁掉（用户截图：数值被切成「· 10」）。
+   现在按提示框的实测尺寸摆放：默认贴鼠标右下；右侧装不下整框就翻到鼠标左侧，
+   下方装不下就翻到上方；仍超出（框比视口还大）时最后夹住，保证整框始终可见。 */
+function placeTip(tip, cx, cy, dx, dy){
+  if (dx == null) dx = 14;
+  if (dy == null) dy = 14;
+  const m = 8;                                   // 与视口边缘的最小间距
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = cx + dx;                            // 默认：鼠标右侧
+  if (left + w > vw - m) left = cx - w - dx;     // 右侧装不下 → 翻到左侧
+  if (left < m) left = m;                        // 左侧也越界（鼠标在视口外）→ 贴左
+  if (left + w > vw - m) left = Math.max(m, vw - w - m);   // 仍旧超出（框很宽）→ 贴右
+  let top = cy + dy;                             // 默认：鼠标下方
+  if (top + h > vh - m) {                        // 下方装不下
+    const up = cy - h - dy;
+    top = (up >= m) ? up : Math.max(m, (vh - h) / 2);      // 放得下就翻上去，否则尽量垂直居中
+  }
+  if (top < m) top = m;                          // 上方越界（鼠标在视口外）→ 贴顶
+  if (top + h > vh - m) top = Math.max(m, vh - h - m);     // 仍旧超出（框很高）→ 贴底
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+
+function onMove(e){
+  const cv = $("cv"); if (!cv._geom) return;
+  const { g, X, t0, t1 } = cv._geom;
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left;
+  if (mx < g.L - 4 || mx > g.W - g.R + 4) return;
+  hoverT = t0 + (mx - g.L) / g.pw * (t1 - t0);
+  draw();
+  // 同一天全部可见卫星的高度对比
+  const rows = [];
+  for (const s of series){
+    if (!s.visible || !s.pts.length) continue;
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < s.pts.length; i++){
+      const d = Math.abs(s.pts[i][0] - hoverT);
+      if (d < bd){ bd = d; bi = i; }
+    }
+    rows.push({ s, p: s.pts[bi] });
+  }
+  rows.sort((a, b) => a.p[1] - b.p[1]);
+  const shown = rows.slice(0, 14);
+  let html = "<b>" + fmtDate(tToDate(hoverT)) + "</b><br>";
+  for (const r of shown)
+    html += "<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:" + r.s.color + ";margin-right:5px'></span>" +
+            esc(r.s.name) + " · <b>" + r.p[1].toFixed(1) + "</b> km<br>";
+  if (rows.length > shown.length) html += "…另有 " + (rows.length - shown.length) + " 颗";
+  const tip = $("tip");
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  placeTip(tip, e.clientX, e.clientY);
+}
+
+load();
+</script>
+</body>
+</html>

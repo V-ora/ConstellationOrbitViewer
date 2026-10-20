@@ -1,0 +1,333 @@
+<style>
+  /* ---------- 点表格行 → 在大图「之外」单独画该组次的爬升图（2026-10-03 新增） ---------- */
+  table.tb tbody tr.rowcur td{background:#dbe7f9 !important}
+  body.emb table.tb tbody tr.rowcur td{background:#dbe7f9 !important}
+  .batchp{margin:0 20px 18px;border-left:4px solid #2f5597}
+  .batchp .bphead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .batchp .bphead h2{margin:0}
+  .batchp .bphead .sp{font-size:12.5px;color:#6b7a94}
+  .batchp #bpClose{margin-left:auto;flex:none}
+  .blegend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+  .bchip{background:#fff;border:1px solid #d8e0ea;border-radius:14px;padding:3px 11px;font-size:11.5px;
+         color:#33415c;cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px}
+  .bchip.off{opacity:.32}
+  .bchip.target{cursor:default;border-style:dashed}
+  .bchip .bdot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .bwrap{position:relative;background:#fff;border:1px solid #eef2f8;border-radius:10px;
+         padding:6px;height:440px;margin-top:6px}
+  .bwrap canvas{height:100%}
+  #bpEmpty{color:#6b7a94;font-size:13px;line-height:2.0;padding:14px 2px 4px}
+</style>
+
+<div class="panel batchp" id="batchp" style="display:none">
+  <div class="bphead">
+    <h2 id="bpTitle">组次爬升图</h2>
+    <span class="sp" id="bpSub"></span>
+    <button id="bpClose" type="button">收起</button>
+  </div>
+  <div class="blegend" id="bpLegend"></div>
+  <div id="bpEmpty" style="display:none"></div>
+  <div class="bwrap" id="bpWrap"><canvas id="bpCv"></canvas></div>
+</div>
+
+<script>
+/* ==========================================================================
+   组次单独爬升图（在大图之外）
+   点「发射任务一览」任意一行 → 在大图下方单独画这一批全部卫星的爬升曲线。
+   · 数据直接用本页已有的 DATA（每颗星都带 pts/cs/l/t/st），所以离线打开也照常可用，
+     不依赖后端接口，也不需要重新联网。
+   · 再点同一行（或点「收起」）即隐藏。
+   ========================================================================== */
+(function () {
+  'use strict';
+  var bpEl = document.getElementById('batchp');
+  if (!bpEl) return;
+  var bpCv = document.getElementById('bpCv');
+  var bpLeg = document.getElementById('bpLegend');
+  var bpWrap = document.getElementById('bpWrap');
+  var bpEmpty = document.getElementById('bpEmpty');
+  var tipEl = document.getElementById('tip');
+
+  // 每颗星一个颜色，尽量拉开（与查看器「组次页」batch.html 同一套色板）
+  var BPP = ['#e8890c', '#2f7ddd', '#22c55e', '#ef4444', '#9333ea', '#0891b2',
+             '#d97706', '#db2777', '#65a30d', '#4f46e5', '#0d9488', '#b45309'];
+  var BP = { key: null, series: [], hoverT: null, geom: null };
+
+  function bpFmt(t) {
+    var d = new Date(new Date(DATA.t0).getTime() + t * 86400000);
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') +
+           '-' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  function bpHide() {
+    bpEl.style.display = 'none';
+    BP.key = null; BP.series = []; BP.hoverT = null; BP.geom = null;
+    if (tipEl) tipEl.style.display = 'none';
+    Array.prototype.forEach.call(document.querySelectorAll('#lauts tbody tr.rowcur'),
+                                 function (t) { t.classList.remove('rowcur'); });
+  }
+
+  // 这一批包含哪些星：优先 COSPAR 前缀精确匹配（同一天两次发射不会串组），退化按发射日匹配
+  function bpPick(x) {
+    var cs = (x.cospar && x.cospar !== '\u2014') ? x.cospar : null;
+    var list = cs ? DATA.sats.filter(function (s) { return s.cs === cs; }) : [];
+    if (!list.length) list = DATA.sats.filter(function (s) { return s.l === x.date; });
+    return list;
+  }
+
+  function bpRenderLegend() {
+    var html = "<span class='bchip' id='bpAll' style='font-weight:650'></span>";
+    BP.series.forEach(function (s) {
+      html += "<span class='bchip' data-n='" + s.norad + "' title='NORAD " + s.norad +
+              (s.st ? ' · ' + s.st : '') + "'><span class='bdot' style='background:" + s.color +
+              "'></span>" + s.name + "</span>";
+    });
+    var tg = [];
+    BP.series.forEach(function (s) {
+      if (!s.target) return;
+      var k = s.target.toFixed(0);
+      if (tg.indexOf(k) < 0) tg.push(k);
+    });
+    if (tg.length) {
+      html += "<span class='bchip target'><span class='bdot' style='background:#2fa06a'></span>" +
+              "工作轨道 " + tg.join(' / ') + " km</span>";
+    }
+    html += "<span class='bchip target' style='border-style:dashed;color:#6b7a94'>点图例可隐藏 / 显示单星</span>";
+    bpLeg.innerHTML = html;
+
+    var sync = function () {
+      var anyOff = BP.series.some(function (s) { return !s.visible; });
+      var all = document.getElementById('bpAll');
+      if (all) all.textContent = anyOff ? '\u2611 全选' : '\u2715 全不选';
+      Array.prototype.forEach.call(bpLeg.querySelectorAll('.bchip[data-n]'), function (el) {
+        var s = null;
+        BP.series.forEach(function (q) { if (q.norad === el.dataset.n) s = q; });
+        if (s) el.classList.toggle('off', !s.visible);
+      });
+    };
+    sync();
+    return sync;
+  }
+
+  /* ---- 悬停提示自适应定位（2026-10-10）---------------------------------
+     与 batch.html / sat.html / 两张大图同一份实现：早前是 Math.min(clientX+14, innerWidth-215)
+     这类「估一个最大宽度」的钳制，14 行提示框比估的宽、鼠标贴右/下边缘时会被窗口裁掉。
+     现在按提示框实测尺寸摆放：默认贴鼠标右下，右侧装不下整框翻到左侧、下方装不下翻到上方，
+     仍未装下（框比视口还大）就垂直居中/夹边，保证整框可见。 ---------------------------- */
+  function placeTip(tip, cx, cy, dx, dy) {
+    if (dx == null) dx = 14;
+    if (dy == null) dy = 14;
+    var m = 8;                                     // 与视口边缘的最小间距
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var left = cx + dx;                            // 默认：鼠标右侧
+    if (left + w > vw - m) left = cx - w - dx;     // 右侧装不下 → 翻到左侧
+    if (left < m) left = m;                        // 左侧也越界（鼠标在视口外）→ 贴左
+    if (left + w > vw - m) left = Math.max(m, vw - w - m);   // 仍旧超出（框很宽）→ 贴右
+    var top = cy + dy;                             // 默认：鼠标下方
+    if (top + h > vh - m) {                        // 下方装不下
+      var up = cy - h - dy;
+      top = (up >= m) ? up : Math.max(m, (vh - h) / 2);      // 放得下就翻上去，否则尽量垂直居中
+    }
+    if (top < m) top = m;                          // 上方越界（鼠标在视口外）→ 贴顶
+    if (top + h > vh - m) top = Math.max(m, vh - h - m);     // 仍旧超出（框很高）→ 贴底
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function bpDraw() {
+    var ctx = bpCv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var W = bpCv.clientWidth, H = bpCv.clientHeight;
+    if (!W || !H) return;
+    bpCv.width = Math.round(W * dpr); bpCv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+
+    var S = BP.series.filter(function (s) { return s.visible && s.pts && s.pts.length; });
+    if (!S.length) { BP.geom = null; return; }
+
+    var L = 66, R = 20, T = 16, B = 42;
+    var pw = W - L - R, ph = H - T - B;
+    var t0 = Infinity, t1 = -Infinity, a0 = Infinity, a1 = -Infinity;
+    S.forEach(function (s) {
+      t0 = Math.min(t0, s.pts[0][0]);
+      t1 = Math.max(t1, s.pts[s.pts.length - 1][0]);
+      s.pts.forEach(function (p) { a0 = Math.min(a0, p[1]); a1 = Math.max(a1, p[1]); });
+      if (s.target) { a0 = Math.min(a0, s.target); a1 = Math.max(a1, s.target); }
+    });
+    t1 = Math.max(t1, t0 + 1);
+    var padY = Math.max((a1 - a0) * 0.10, 4);
+    a0 -= padY; a1 += padY;
+    var X = function (t) { return L + (t - t0) / (t1 - t0) * pw; };
+    var Y = function (a) { return T + (a1 - a) / (a1 - a0) * ph; };
+    BP.geom = { L: L, T: T, pw: pw, ph: ph, X: X, Y: Y, t0: t0, t1: t1 };
+
+    ctx.font = '11.5px "Microsoft YaHei",sans-serif';
+    // 横向网格 + 高度刻度
+    ctx.lineWidth = 1; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var i = 0; i <= 5; i++) {
+      var a = a0 + (a1 - a0) * i / 5, y = Y(a);
+      ctx.strokeStyle = '#eef2f7';
+      ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+      ctx.fillStyle = '#8a94a6'; ctx.fillText(a.toFixed(0), L - 8, y);
+    }
+    // 纵向日期刻度
+    var NT = Math.min(7, Math.max(3, Math.floor(pw / 120)));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var k = 0; k <= NT; k++) {
+      var tt = t0 + (t1 - t0) * k / NT, x = X(tt);
+      ctx.strokeStyle = '#eef2f7';
+      ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
+      ctx.fillStyle = '#8a94a6';
+      ctx.textAlign = (k === 0) ? 'left' : (k === NT ? 'right' : 'center');
+      ctx.fillText(bpFmt(tt), k === 0 ? L : (k === NT ? L + pw : x), T + ph + 9);
+    }
+    // 工作轨道虚线（去重：同一高度只画一条）
+    var seen = {};
+    S.forEach(function (s) {
+      if (!s.target) return;
+      var key = s.target.toFixed(0);
+      if (seen[key]) return;
+      seen[key] = 1;
+      var y = Y(s.target);
+      ctx.save(); ctx.setLineDash([7, 5]); ctx.strokeStyle = '#2fa06a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#2fa06a'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText('工作轨道 ' + s.target.toFixed(1) + ' km', L + 7, y - 3);
+      ctx.textBaseline = 'middle';
+    });
+    // 入轨点（每条的起点）
+    S.forEach(function (s) {
+      ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(X(s.pts[0][0]), Y(s.pts[0][1]), 3.0, 0, 6.2832); ctx.fill();
+    });
+    // 主曲线
+    ctx.lineJoin = 'round';
+    S.forEach(function (s) {
+      ctx.strokeStyle = s.color; ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      for (var n = 0; n < s.pts.length; n++) {
+        var px = X(s.pts[n][0]), py = Y(s.pts[n][1]);
+        if (n) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    });
+    // 悬停竖线
+    if (BP.hoverT != null && BP.hoverT >= t0 && BP.hoverT <= t1) {
+      var hx = X(BP.hoverT);
+      ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = '#9aa7ba'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(hx, T); ctx.lineTo(hx, T + ph); ctx.stroke(); ctx.restore();
+    }
+    // 轴标题
+    ctx.fillStyle = '#8a94a6'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('时间（UTC）', L + pw / 2, T + ph + 24);
+    ctx.save();
+    ctx.translate(14, T + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('平均轨道高度 (km)', 0, 0);
+    ctx.restore();
+  }
+
+  function bpOpen(x, tr) {
+    var key = String(x.grp || '') + '@' + String(x.date || '');
+    if (BP.key === key && bpEl.style.display !== 'none') { bpHide(); return; }
+
+    var list = bpPick(x);
+    Array.prototype.forEach.call(document.querySelectorAll('#lauts tbody tr.rowcur'),
+                                 function (t) { t.classList.remove('rowcur'); });
+    if (tr) tr.classList.add('rowcur');
+    BP.key = key; BP.hoverT = null;
+    BP.series = list.map(function (s, i) {
+      return { name: s.n, norad: s.c, pts: s.p || [], target: s.t, st: s.st,
+               color: BPP[i % BPP.length], visible: true };
+    });
+
+    document.getElementById('bpTitle').textContent = (x.grp || '该组次') + ' · 单独爬升图';
+    document.getElementById('bpSub').innerHTML =
+      'COSPAR ' + (x.cospar || '\u2014') + '（编号，非日期） · 共 ' + list.length + ' 颗' +
+      ' · 发射 ' + (x.bjt || x.date || '\u2014') +
+      (x.rocket ? ' · ' + x.rocket : '') +
+      (x.site ? ' · ' + (x.site_s || x.site) : '');
+    bpEl.style.display = '';
+
+    if (!list.length) {
+      bpWrap.style.display = 'none';
+      bpEmpty.style.display = '';
+      bpEmpty.innerHTML = '这一批暂时没有可用的逐日高度数据。爬升曲线由程序自动从 CelesTrak 补齐' +
+        '（新发射一般要等几天历元）；补齐之后这里会自动出现，不需要任何操作。';
+      bpLeg.innerHTML = '';
+    } else {
+      bpWrap.style.display = '';
+      bpEmpty.style.display = 'none';
+      var sync = bpRenderLegend();
+      bpLeg.onclick = function (e) {
+        if (e.target.closest('#bpAll')) {
+          var anyOff = BP.series.some(function (s) { return !s.visible; });
+          BP.series.forEach(function (s) { s.visible = anyOff; });
+          sync(); bpDraw(); return;
+        }
+        var c = e.target.closest('.bchip[data-n]');
+        if (!c) return;
+        BP.series.forEach(function (s) { if (s.norad === c.dataset.n) s.visible = !s.visible; });
+        sync(); bpDraw();
+      };
+      bpDraw();
+    }
+    try { bpEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { bpEl.scrollIntoView(); }
+  }
+
+  document.getElementById('bpClose').onclick = bpHide;
+
+  bpCv.addEventListener('mousemove', function (e) {
+    var g = BP.geom; if (!g) return;
+    var r = bpCv.getBoundingClientRect();
+    var mx = e.clientX - r.left;
+    if (mx < g.L - 4 || mx > g.L + g.pw + 4) {
+      BP.hoverT = null; if (tipEl) tipEl.style.display = 'none'; bpDraw(); return;
+    }
+    BP.hoverT = g.t0 + (mx - g.L) / g.pw * (g.t1 - g.t0);
+    bpDraw();
+    var rows = [];
+    BP.series.forEach(function (s) {
+      if (!s.visible || !s.pts.length) return;
+      var bi = 0, bd = Infinity;
+      for (var i = 0; i < s.pts.length; i++) {
+        var d = Math.abs(s.pts[i][0] - BP.hoverT);
+        if (d < bd) { bd = d; bi = i; }
+      }
+      rows.push([s, s.pts[bi]]);
+    });
+    if (!rows.length) return;
+    rows.sort(function (a, b) { return a[1][1] - b[1][1]; });
+    var shown = rows.slice(0, 14);
+    var h = '<b>' + bpFmt(BP.hoverT) + '</b><br>';
+    shown.forEach(function (r2) {
+      h += "<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:" +
+           r2[0].color + ";margin-right:5px'></span>" + r2[0].name +
+           ' · <b>' + r2[1][1].toFixed(1) + '</b> km<br>';
+    });
+    if (rows.length > shown.length) h += '\u2026另有 ' + (rows.length - shown.length) + ' 颗';
+    if (tipEl) {
+      tipEl.innerHTML = h;
+      tipEl.style.display = 'block';
+      placeTip(tipEl, e.clientX, e.clientY);
+    }
+  });
+  bpCv.addEventListener('mouseleave', function () {
+    BP.hoverT = null; if (tipEl) tipEl.style.display = 'none'; bpDraw();
+  });
+  window.addEventListener('resize', function () {
+    if (bpEl.style.display !== 'none') bpDraw();
+  });
+
+  // 表格上方的说明里补一句用法提示（等主脚本填完 #rstats 之后再追加）
+  window.addEventListener('load', function () {
+    var r = document.getElementById('rstats');
+    if (r) r.innerHTML += '<br><b>点下面表格任意一行</b> \u2192 在这个大图<b>下方</b>单独画该组次的爬升图' +
+                          '（再点一次收起）。';
+  });
+
+  window.bpOpen = bpOpen;
+  window.bpHide = bpHide;
+})();
+</script>

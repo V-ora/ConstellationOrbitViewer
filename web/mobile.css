@@ -1,0 +1,232 @@
+/* ============================================================================
+   移动端 / 窄屏 / 触屏适配（2026-10-20）
+   ----------------------------------------------------------------------------
+   为什么单独一个文件、不内联进 index.html：
+     「不含过境预报」变体页是**另一份**页面（_features/index_original.html），
+     内联就得两份都改，迟早漂。放这里之后，两份页面各加一行 <link> 即可，
+     以后调手机布局只改这一个文件。
+
+   配套 JS：web/mobile.js（抽屉按钮 / 双指缩放 / 窄屏文案缩短）。
+   两级断点：
+     ≤1100px  三栏变窄（小平板、分屏窗口）
+     ≤ 900px  塌成单栏，左右面板变抽屉，页脚变手机操作条
+     ≤ 480px  手机竖屏再压一档
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- 全局触屏基线 */
+/* 画布自己处理手势（拖拽旋转 / 双指缩放），必须吃掉浏览器的滚动与页面缩放。
+   ★ 只加在 canvas 上，绝不能加在 #stage 上 —— #passView / #batchPanel 是 stage 的
+     子元素且需要滚动，祖先带 touch-action:none 会把它们的滚动一起废掉。 */
+#cv3d, #cv2d { touch-action: none; }
+#cv3d, #cv2d { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* 注意：不要把 #raiseFrame（爬升大图 iframe）算进来 —— iframe 内部是独立文档，
+   自己处理滚动；在 iframe 元素上加 touch-action 反而可能连带影响它的滚动。 */
+* { -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior: none; }
+
+/* 手机地址栏会把 100vh 撑出屏幕 → 优先用动态视口单位 */
+@supports (height: 100dvh) {
+  #app { height: 100dvh; }
+}
+
+/* 抽屉只会出现在窄屏；宽屏下不生成可见元素（JS 仍会建，靠这里隐藏） */
+#mbLeft, #mbRight, #mbFull, #mbMask, .mb-x { display: none; }
+
+/* ================================================================ ≤1100px */
+/* ★ 这里**不动三栏宽度**。曾经试过 300/320 → 252/274 给地球腾地方，
+   结果侧栏变窄后「星座数据源」卡片换行变高，把下面的卫星列表挤到页脚底下
+   （1052×900 实测：列表第一行 y=832~858，中心点 845 落在页脚上，点选直接失效）。
+   省下的 96px 换不来这点代价，所以只做「不占版面」的收敛。 */
+@media (max-width: 1100px) {
+  header { gap: 10px; padding: 0 12px; }
+  header .brand { min-width: 0; }
+  header .brand span { display: none; }    /* 副标题「千帆 QIANFAN · 国网星网 GW」先让位 */
+  #vlabel { max-width: calc(100% - 140px); }
+}
+
+/* ================================================================ ≤900px */
+/* 900 而不是 820：844px 是手机**横屏**的常见宽度（iPhone 14），
+   卡在 820 就会让它掉回三栏，地球被挤成 318px 宽。 */
+@media (max-width: 900px) {
+  /* 单栏：header / 舞台 / 页脚。左右面板脱离文档流变抽屉 */
+  #app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) 52px;
+    height: 100vh;
+  }
+  @supports (height: 100dvh) {
+    #app { height: 100dvh; }
+  }
+
+  /* ---- 顶栏：两行（操作行 + 视图切换行），压缩到 76px 左右 ---- */
+  header {
+    grid-column: 1; grid-row: 1;
+    flex-wrap: wrap; row-gap: 5px; column-gap: 6px;
+    padding: 6px 9px;
+  }
+  header .brand { order: 1; min-width: 0; gap: 7px; }
+  header .brand .logo { width: 23px; height: 23px; border-radius: 7px; font-size: 12px; }
+  /* 手机上顶栏一行要塞「播放 / 现在 / 刷新 / 倍速」四个控件，标题字留着必然换行。
+     品牌信息由 logo 承担 —— 页面是用户自己刚打开的，不需要再用 8 个字自我介绍。 */
+  header .brand b { display: none; }
+  header .grow, header .clock { display: none; }
+
+  #btnPlay    { order: 2; }
+  #btnNow     { order: 3; }
+  #btnRefresh { order: 4; }
+  #speed      { order: 5; margin-left: auto; }
+
+  header .btn, header select {
+    font-size: 11.5px; padding: 5px 8px; border-radius: 7px; min-height: 30px;
+  }
+  /* 视图切换独占一行，可横向滑动（4 个按钮在 390px 上放不下） */
+  .seg {
+    order: 6; flex: 1 0 100%; overflow-x: auto; scrollbar-width: none;
+    -ms-overflow-style: none; padding: 2px;
+  }
+  .seg::-webkit-scrollbar { display: none; }
+  .seg button { padding: 5px 11px; white-space: nowrap; flex: none; min-height: 28px; }
+
+  /* ---- 舞台 ---- */
+  main { grid-column: 1; grid-row: 2; }
+
+  /* ---- 页脚 → 手机操作条：[☰] [时间轴] [ℹ] [⤢] ---- */
+  footer {
+    grid-column: 1; grid-row: 3;
+    padding: 0 6px;
+    gap: 6px;
+    min-height: 52px;
+  }
+  footer .times { display: none; }
+  /* 时间轴原本是绝对定位居中（桌面版为了窗口正中）；手机上改成普通 flex 项 */
+  footer > span:nth-of-type(2) {
+    position: static !important;
+    left: auto !important; top: auto !important; transform: none !important;
+    flex: 1 1 auto; min-width: 0; gap: 0 !important;
+  }
+  footer > span:nth-of-type(2) input[type=range] { min-width: 0; }
+  /* 「退出程序」在手机上是危险按钮：按下去杀的是电脑那端，误触代价太高 → 隐藏 */
+  #btnQuit { display: none !important; }
+
+  /* 抽屉按钮：桌面端不存在，这里才显示 */
+  #mbLeft, #mbRight, #mbFull {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: none; width: 44px; height: 38px; padding: 0;
+    border: 1px solid var(--line); background: var(--panel); border-radius: 9px;
+    font-size: 15px; line-height: 1; color: var(--text);
+  }
+  #mbLeft.on, #mbRight.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+  /* ---- 左右面板：抽屉 ---- */
+  #left, #right {
+    position: fixed; top: 0; bottom: 0; z-index: 60;
+    width: min(88vw, 352px);
+    box-shadow: 0 0 26px rgba(16, 32, 52, .22);
+    overscroll-behavior: contain;
+    transition: transform .22s cubic-bezier(.22, .61, .36, 1);
+    will-change: transform;
+  }
+  #left  { left: 0;  right: auto; width: 300px; max-width: calc(100vw - 44px); }
+  #right { right: 0; left: auto;  width: 320px; max-width: calc(100vw - 44px); }
+  #left  { transform: translateX(-102%); }
+  #right { transform: translateX(102%); }
+  body.mb-l #left  { transform: translateX(0); }
+  body.mb-r #right { transform: translateX(0); }
+  #right .pane:nth-child(1) { min-height: 120px; }
+  .pane { padding: 11px 12px; }
+
+  /* 抽屉遮罩 */
+  #mbMask {
+    display: block; position: fixed; inset: 0; z-index: 55;
+    background: rgba(14, 27, 45, .38);
+    opacity: 0; pointer-events: none; transition: opacity .22s;
+  }
+  body.mb-l #mbMask, body.mb-r #mbMask { opacity: 1; pointer-events: auto; }
+
+  /* 抽屉右上角的关闭按钮：抽屉本身盖住了左下的 ☰ / 右下的 ℹ，
+     光靠「点右侧那条遮罩」不够直观 */
+  .mb-x {
+    display: block; position: absolute; top: 7px; right: 7px; z-index: 3;
+    width: 30px; height: 30px; line-height: 1; padding: 0;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, .94);
+    border-radius: 8px; color: var(--muted); font-size: 13px;
+  }
+  #left .pane:first-child h3, #right .pane:first-child h3 { padding-right: 34px; }
+
+  /* ---- 舞台内浮层 ---- */
+  #hud { left: 8px; top: 8px; padding: 5px 8px; font-size: 10.5px; line-height: 1.4; max-width: 54vw; }
+  #hud b { font-size: 11.5px; }
+  #hud .k { font-size: 10.5px; }
+
+  /* 轨迹/覆盖圆/跟随 一排按钮：挪到底部、横向滑动（拇指够得着，也不挡球） */
+  #vlabel {
+    left: 8px; right: 8px; top: auto; bottom: 8px;
+    max-width: none; flex-wrap: nowrap; justify-content: flex-start;
+    overflow-x: auto; scrollbar-width: none; gap: 5px; padding-bottom: 1px;
+    pointer-events: auto;
+  }
+  #vlabel::-webkit-scrollbar { display: none; }
+  #vlabel .btn.sm, #vlabel select.btn.sm {
+    flex: none; font-size: 10.5px; padding: 4px 8px; white-space: nowrap; min-height: 28px;
+  }
+
+  #banner { max-width: 88%; font-size: 11.5px; padding: 6px 10px; }
+  #updBar { white-space: normal; font-size: 11px; max-width: 86%; }
+  #batchBar { max-width: 62%; }
+  #raiseBar { left: 8px !important; right: 8px !important; top: 8px !important; }
+  #raiseBar > span { display: none; }          /* 「历史曲线为当时分析快照…」长提示，手机上不显示 */
+  #tip { display: none !important; }           /* 触屏没有 hover，tip 只会在拖拽时误弹 */
+
+  /* ---- 过境预报视图 ---- */
+  #passView .pv-wrap { padding: 12px 11px 24px; }
+  #passView h2 { font-size: 15.5px; }
+  #passView .pv-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  #passView .pv-loc { padding: 9px 10px; gap: 8px; }
+  #passView .pv-field { flex: 1 1 100%; }
+  #passView .pv-field input { width: 100%; max-width: none; }
+  #passView .pv-list { max-height: 44vh; }
+  #passView .pv-row { font-size: 12px; padding: 6px 8px; }
+
+  #batchPanel .bp { width: 94%; padding: 12px 12px; }
+  #batchPanel .brow { padding: 8px 8px; }
+}
+
+/* ================================================================ ≤480px */
+@media (max-width: 480px) {
+  header .btn, header select { font-size: 11px; padding: 4px 7px; }
+  #hud { max-width: 62vw; }
+  #vlabel { bottom: 6px; }
+  #left  { width: calc(100vw - 40px); }
+  #right { width: calc(100vw - 40px); }
+  footer { min-height: 50px; }
+  #mbLeft, #mbRight { width: 40px; }
+}
+
+/* 横屏矮窗（手机横放 / 分屏）：把顶栏与页脚再压一压，别把球挤没了 */
+@media (max-width: 900px) and (max-height: 460px) {
+  #app { grid-template-rows: auto minmax(0, 1fr) 44px; }
+  header { padding: 4px 8px; row-gap: 4px; }
+  header .brand b { display: none; }
+  /* 横屏宽度够（844px），把视图切换收回第一行，省掉一整行 ~30px 高度 */
+  .seg { flex: 0 0 auto; }
+  footer { min-height: 44px; }
+  #mbLeft, #mbRight, #mbFull { height: 32px; width: 38px; font-size: 13px; }
+  #hud { display: none; }
+}
+
+/* 刘海屏安全区 */
+@supports (padding: env(safe-area-inset-bottom)) {
+  @media (max-width: 900px) {
+    footer { padding-bottom: env(safe-area-inset-bottom); }
+    #left  { padding-left: env(safe-area-inset-left); }
+    #right { padding-right: env(safe-area-inset-right); }
+  }
+}
+
+/* 触屏设备（不管多宽）：hover 类提示没有意义 */
+@media (hover: none) {
+  #tip { display: none !important; }
+  .btn:hover { border-color: var(--line); background: var(--panel); }
+  .btn.pri:hover { background: var(--accent); }
+  #passView .pv-row[data-norad]:hover { border-color: var(--line); }
+}

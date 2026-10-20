@@ -1,0 +1,30 @@
+{
+  "_说明": "星网高轨三星的本地核实元信息。来源：卫星百科「星网」词条发射表（data/gw_launches.json，北京时间）+ CelesTrak SATCAT records.php 逐条核实（2024-040A/135A/181A，2026-09-30 查证）。HG-01 的 OMM OBJECT_ID 在 CelesTrak 为空，这里补 cospar 以便归批。",
+  "59069": {
+    "cospar": "2024-040A",
+    "mission": "卫星互联网高轨卫星01星",
+    "rocket": "长征三号乙 Y95",
+    "launch_time": "2024-02-29 21:03",
+    "launch_date": "2024-02-29",
+    "site": "西昌 LC-2",
+    "orbit_note": "GEO 35782×35787 km · 0°"
+  },
+  "60327": {
+    "cospar": "2024-135A",
+    "mission": "卫星互联网高轨卫星02星",
+    "rocket": "长征三号乙 Y97",
+    "launch_time": "2024-08-01 21:14",
+    "launch_date": "2024-08-01",
+    "site": "西昌 LC-2",
+    "orbit_note": "GEO 35784×35788 km · 0°"
+  },
+  "61503": {
+    "cospar": "2024-181A",
+    "mission": "卫星互联网高轨卫星03星",
+    "rocket": "长征三号乙 Y100",
+    "launch_time": "2024-10-10 21:50",
+    "launch_date": "2024-10-10",
+    "site": "西昌 LC-2",
+    "orbit_note": "GEO 35780×35792 km · 0°"
+  }
+}

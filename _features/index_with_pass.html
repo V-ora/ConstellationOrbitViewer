@@ -1,0 +1,2504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星座轨道实时查看器 · 千帆 / 国网星网</title>
+<style>
+:root{
+  --bg:#eef2f7; --panel:#ffffff; --panel2:#f7f9fc; --line:#dfe6ef; --line2:#eaeff5;
+  --text:#1c2733; --muted:#6b7c90; --muted2:#9aa9b9;
+  --accent:#2f6fed; --accent-soft:#e8f0ff;
+  --qf:#e8890c; --gw:#2f7de1; --gw2:#7a5cf0;
+  --warn:#d9534f; --ok:#2f9e6f;
+  --shadow:0 1px 2px rgba(24,45,73,.06),0 6px 18px rgba(24,45,73,.06);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); font-size:13px; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select{font-family:inherit;font-size:13px;color:inherit}
+button{cursor:pointer}
+
+#app{display:grid;grid-template-columns:300px 1fr 320px;grid-template-rows:54px 1fr 58px;height:100vh}
+#left{grid-column:1;grid-row:2}
+#right{grid-column:3;grid-row:2}
+main{grid-column:2;grid-row:2}
+header{grid-column:1/4;grid-row:1}
+header{
+  display:flex;align-items:center;gap:14px;padding:0 16px;
+  background:var(--panel);border-bottom:1px solid var(--line);z-index:5;
+}
+footer{grid-column:1/4;grid-row:3}
+header .brand{display:flex;align-items:center;gap:10px;min-width:230px}
+header .brand .logo{
+  width:26px;height:26px;border-radius:8px;background:linear-gradient(140deg,#2f6fed,#7a5cf0);
+  display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;
+}
+header .brand b{font-size:14.5px;letter-spacing:.2px}
+header .brand span{display:block;color:var(--muted);font-size:11px;margin-top:-1px}
+.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
+.seg button{
+  border:0;background:transparent;padding:5px 13px;border-radius:7px;color:var(--muted);
+  font-weight:600;transition:.15s
+}
+.seg button.on{background:var(--panel);color:var(--accent);box-shadow:0 1px 3px rgba(24,45,73,.12)}
+header .grow{flex:1}
+.clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+.clock b{font-size:14px;font-variant-numeric:tabular-nums}
+.clock small{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.btn{
+  border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 11px;
+  display:inline-flex;align-items:center;gap:6px;color:var(--text);font-weight:600;transition:.15s
+}
+.btn:hover{border-color:#c3d3e6;background:#fbfdff}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{background:#2a63d6}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.5;cursor:default}
+
+aside{background:var(--panel);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+#left{border-right:1px solid var(--line);width:300px}
+#right{border-left:1px solid var(--line);width:320px}
+#right .pane:nth-child(1){flex:1 1 auto;min-height:160px}
+#right .pane:nth-child(2){flex:none}
+#right .pane:nth-child(3){flex:none;max-height:34%;}
+.pane{padding:12px 13px;border-bottom:1px solid var(--line2);overflow:auto;min-height:0}
+.pane.grow{flex:1}
+.pane h3{
+  margin:0 0 9px;font-size:11.5px;letter-spacing:.9px;color:var(--muted2);
+  text-transform:uppercase;font-weight:700
+}
+.pane h3 .r{float:right;text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)}
+
+.gcard{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;transition:.15s;background:var(--panel)}
+.gcard.off{opacity:.5}
+.gcard .top{display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 3px rgba(0,0,0,.04)}
+.gcard .nm{font-weight:650;flex:1;font-size:13px}
+.gcard .sub{color:var(--muted);font-size:11px;margin:3px 0 0 17px}
+.gcard .kv{display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0 0 17px;color:var(--muted);font-size:11.5px}
+.gcard .kv b{color:var(--text);font-weight:650;font-variant-numeric:tabular-nums}
+.epoch-age.old{color:var(--warn)}
+.switch{position:relative;width:34px;height:19px;flex:none}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.switch i{position:absolute;inset:0;background:#ccd7e3;border-radius:20px;transition:.18s}
+.switch i:before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch input:checked + i{background:var(--accent)}
+.switch input:checked + i:before{transform:translateX(15px)}
+
+.row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.row .lab{color:var(--muted);flex:none;width:52px;font-size:12px}
+input[type=text],input[type=number]{
+  border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--panel);
+  min-width:0;width:100%;outline:none
+}
+input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.chip{
+  border:1px solid var(--line);background:var(--panel);border-radius:20px;padding:3px 10px;
+  color:var(--muted);font-size:12px;transition:.15s
+}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.stat{display:flex;gap:14px;color:var(--muted);font-size:12px;margin:6px 0 2px}
+.stat b{color:var(--text);font-variant-numeric:tabular-nums}
+
+#list{overflow:auto;flex:1;min-height:0}
+#list .item{
+  display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;cursor:pointer;
+  font-variant-numeric:tabular-nums
+}
+#list .item:hover{background:var(--panel2)}
+#list .item.sel{background:var(--accent-soft)}
+#list .item .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#list .item .a{color:var(--muted);font-size:11.5px}
+#list .item .badge{font-size:10px;padding:1px 5px;border-radius:5px;background:#fdecea;color:var(--warn);font-weight:600}
+#list .item .badge.ok{background:#e8f6ef;color:var(--ok)}
+#list .item .badge.mid{background:#e8f0ff;color:#2f6fed}
+
+main{position:relative;min-width:0;min-height:0;background:var(--panel)}
+#cv3d,#cv2d{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+#cv2d{display:none}
+main.v2d #cv3d{display:none}
+main.v2d #cv2d{display:block}
+main.vraise #cv3d,main.vraise #cv2d{display:none}
+/* 爬升图视图：彻底隐藏轨迹/覆盖圆按钮排——跟随选中/适配视野只对 3D/2D 有意义，
+   爬升图里出现只会叠在页面上碍事（用户反馈 2026-09-30） */
+main.vraise #vlabel{display:none}
+#raiseBar{left:auto;display:none;gap:6px;align-items:center}
+main.vraise #hud{display:none}
+main{cursor:grab}
+main.dragging{cursor:grabbing}
+.overlay{position:absolute;pointer-events:none}
+#hud{
+  left:12px;top:12px;background:rgba(255,255,255,.9);border:1px solid var(--line);
+  border-radius:10px;padding:8px 11px;box-shadow:var(--shadow);font-variant-numeric:tabular-nums;line-height:1.5
+}
+#hud .k{color:var(--muted);font-size:11.5px}
+#hud b{font-size:13px}
+#vlabel{right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 180px)}
+#vlabel button{pointer-events:auto}
+#tip{
+  background:rgba(28,39,51,.92);color:#fff;border-radius:8px;padding:6px 9px;font-size:12px;
+  line-height:1.45;white-space:nowrap;display:none
+}
+#banner{
+  left:50%;transform:translateX(-50%);top:12px;background:#fff6e5;border:1px solid #f0d9a8;color:#8a5b00;
+  border-radius:9px;padding:7px 13px;box-shadow:var(--shadow);display:none;max-width:70%
+}
+#banner.err{background:#fdecea;border-color:#f3c3bf;color:#a1302b}
+#batchBar{
+  left:12px;top:12px;background:#e8f1fd;border:1px solid var(--accent);color:#1a3c66;
+  border-radius:8px;padding:4px 9px;box-shadow:var(--shadow);display:none;align-items:center;gap:6px;
+  font-size:11px;font-weight:600;max-width:46%;
+  pointer-events:auto;z-index:5
+}
+#batchBar .btn.sm{font-size:10px;padding:2px 7px;line-height:1.2}
+#updBar{
+  left:50%;transform:translateX(-50%);top:12px;background:#e8f0fe;border:1px solid var(--accent);
+  color:#1a3c66;border-radius:9px;padding:7px 13px;box-shadow:var(--shadow);display:none;
+  font-size:12.5px;font-weight:650;cursor:pointer;z-index:9;pointer-events:auto;white-space:nowrap
+}
+#batchPanel{
+  position:absolute;inset:0;background:rgba(247,249,252,.72);display:none;place-items:center;z-index:8;
+  backdrop-filter:blur(2px)
+}
+#batchPanel .bp{
+  background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+  width:min(600px,92%);max-height:84%;overflow:auto;box-shadow:var(--shadow)
+}
+#batchPanel h3{margin:2px 0 10px}
+#batchPanel .brow{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;cursor:pointer;border:1px solid transparent}
+#batchPanel .brow:hover{background:var(--panel2);border-color:var(--line)}
+#batchPanel .brow.on{background:var(--accent-soft);border-color:var(--accent)}
+#batchPanel .brow .idx{width:32px;height:32px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;font-size:12.5px;flex:none}
+#batchPanel .brow .t{font-weight:650;font-size:13px}
+#batchPanel .brow .s{color:var(--muted);font-size:11px;margin-top:2px}
+#batchPanel .brow .n{margin-left:auto;color:var(--muted);font-size:11.5px;white-space:nowrap}
+
+/* ============================= 过境预报（第 4 个视图） ============================= */
+main.vpass #cv3d,main.vpass #cv2d{display:none}
+main.vpass #vlabel,main.vpass #hud,main.vpass #tip{display:none}
+#passView{position:absolute;inset:0;background:var(--panel);overflow:auto;z-index:7;display:none;cursor:default}
+#passView.on{display:block}
+#passView .pv-wrap{padding:15px 20px 28px;max-width:1220px;margin:0 auto}
+#passView h2{margin:0 0 3px;font-size:17px;display:flex;align-items:center;gap:7px}
+#passView .pv-sub{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.65}
+#passView .pv-sub b{color:var(--accent)}
+#passView .pv-loc{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+#passView .pv-field{display:flex;flex-direction:column;gap:3px}
+#passView .pv-field label{color:var(--muted);font-size:11px}
+#passView .pv-field input{width:270px;max-width:54vw;border:1px solid var(--line);border-radius:8px;padding:6.5px 9px;background:#fff;font-size:13px;outline:none;font-family:inherit}
+#passView .pv-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#passView .pv-msg{margin:9px 2px 0;font-size:12px;min-height:17px;color:var(--muted);line-height:1.55}
+#passView .pv-msg.err{color:#a1302b}
+#passView .pv-msg.ok{color:#177a3d}
+#passView .pv-cfg{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:11px 0 2px;font-size:12px}
+#passView .pv-cfg .lab{color:var(--muted)}
+#passView select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background:#fff;outline:none;font-family:inherit}
+#passView .pv-bar{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden;margin:8px 0 0;display:none}
+#passView .pv-bar.on{display:block}
+#passView .pv-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s linear}
+#passView .pv-body{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:13px}
+@media (max-width:920px){#passView .pv-body{grid-template-columns:1fr}}
+#passView .pv-col{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;min-height:110px}
+#passView .pv-col h3{margin:0 0 9px;font-size:13.5px;display:flex;align-items:center;gap:8px}
+#passView .pv-col h3 .r{margin-left:auto;color:var(--muted);font-size:11px;font-weight:400}
+#passView .pv-list{display:flex;flex-direction:column;gap:6px;max-height:54vh;overflow:auto}
+#passView .pv-row{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:12.5px}
+#passView .pv-row.now{border-color:#f0b429;background:#fffaef}
+#passView .pv-row .nm{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#passView .pv-row .mt{color:var(--muted);font-size:11px}
+#passView .pv-row .rt{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#passView .pv-row .rt b{font-size:13px}
+#passView .pv-empty{color:var(--muted);font-size:12px;padding:6px 2px;line-height:1.6}
+#passView .pv-foot{margin:13px 2px 0;color:var(--muted);font-size:11.5px;line-height:1.75}
+/* 3D 视图里的观测点标记（DOM 覆盖层，避免改动 WebGL 点缓冲） */
+#obs3d{position:absolute;transform:translate(-50%,-100%);pointer-events:none;display:none;z-index:6;text-align:center}
+#obs3d .pin{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:13px solid #e0342b;margin:0 auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+#obs3d .lb{background:rgba(224,52,43,.94);color:#fff;font-size:10.5px;border-radius:5px;padding:1px 6px;white-space:nowrap;margin-top:1px;display:inline-block}
+#loading{
+  position:absolute;inset:0;background:rgba(247,249,252,.82);display:grid;place-items:center;z-index:6;
+  backdrop-filter:blur(2px)
+}
+#loading .box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 22px;box-shadow:var(--shadow);text-align:center}
+.spin{width:22px;height:22px;border:2.5px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;margin:0 auto 9px;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+footer{
+  display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--panel);
+  border-top:1px solid var(--line);position:relative
+}
+footer .times{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;height:4px;border-radius:3px;background:linear-gradient(90deg,#cfdcec,#cfdcec);
+  flex:1;outline:none
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);
+  border:2.5px solid #fff;box-shadow:0 1px 4px rgba(24,45,73,.3);cursor:pointer
+}
+select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background:var(--panel);outline:none}
+.detail .ttl{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:2px}
+.detail .cs{color:var(--muted);font-size:11.5px;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.grid .cell{background:var(--panel2);border-radius:8px;padding:6px 8px}
+.grid .cell .k{color:var(--muted);font-size:11px}
+.grid .cell .v{font-weight:650;font-variant-numeric:tabular-nums;font-size:13px}
+.grid .cell.wide{grid-column:1/-1}
+.hint{color:var(--muted);font-size:11.5px;line-height:1.6}
+.legend{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}
+.legend .li{display:flex;align-items:center;gap:7px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="logo">◎</div>
+      <div><b>星座轨道实时查看器</b><span>千帆 QIANFAN · 国网星网 GW</span></div>
+    </div>
+    <div class="seg" id="viewSeg">
+      <button data-v="3d" class="on">3D 地球</button>
+      <button data-v="2d">2D 地面轨迹</button>
+      <button data-v="raise">轨道爬升图</button>
+      <button data-v="pass">过境预报</button>
+    </div>
+    <div class="grow"></div>
+    <div class="clock">
+      <b id="tLocal">--:--:--</b>
+      <small id="tUtc">UTC --:--:--</small>
+    </div>
+    <button class="btn" id="btnPlay">⏸ 暂停</button>
+    <select id="speed" title="时间倍速">
+      <option value="1" selected>实时 1×</option>
+      <option value="10">10×</option>
+      <option value="60">60×</option>
+      <option value="300">300×</option>
+      <option value="900">900×</option>
+      <option value="0">暂停</option>
+    </select>
+    <button class="btn" id="btnNow">回到现在</button>
+    <button class="btn pri" id="btnRefresh">↻ 刷新 TLE</button>
+  </header>
+
+  <aside id="left">
+    <div class="pane">
+      <h3 id="srcTitle">星座数据源 <span class="r" id="srcNote">CelesTrak</span></h3>
+      <div id="gcards"></div>
+      <div id="batchInfo" style="display:none"></div>
+    </div>
+    <div class="pane">
+      <h3>筛选 <span class="r" id="statNote"></span></h3>
+      <div class="row">
+        <span class="lab">高度</span>
+        <input type="number" id="altMin" value="0" step="10" title="最低高度 km">
+        <span style="color:var(--muted)">–</span>
+        <input type="number" id="altMax" value="40000" step="100" title="最高高度 km">
+        <span style="color:var(--muted)">km</span>
+      </div>
+      <div class="chips" id="presets">
+        <button class="chip on" data-p="all">全部</button>
+        <button class="chip" data-p="raise">爬升中 &lt;1000 km</button>
+        <button class="chip" data-p="stuck">未正常升轨</button>
+        <button class="chip" data-p="work">低轨工作轨道</button>
+        <button class="chip" data-p="geo">同步轨道</button>
+      </div>
+      <input type="text" id="q" placeholder="搜索：名称 / NORAD / 国际卫星标识符 / 组次">
+    </div>
+    <div class="pane grow" style="border-bottom:0;display:flex;flex-direction:column;padding-bottom:0">
+      <h3>卫星列表 <span class="r" id="listNote"></span></h3>
+      <div id="list"></div>
+      <div style="height:10px;flex:none"></div>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <canvas id="cv3d"></canvas>
+    <canvas id="cv2d"></canvas>
+    <iframe id="raiseFrame" title="轨道爬升图" style="position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#fff"></iframe>
+    <div class="overlay" id="raiseBar" style="display:none;right:12px;top:12px;left:auto;pointer-events:auto">
+      <button class="btn sm on" data-r="qianfan">千帆</button>
+      <button class="btn sm" data-r="gw">星网</button>
+      <button class="btn sm" data-r="sel" id="raiseSelBtn" style="display:none">选中星</button>
+      <span style="color:var(--muted);font-size:11px;margin-left:6px">历史曲线为当时分析快照，实时位置请回 3D / 2D 视图</span>
+    </div>
+    <div class="overlay" id="hud"></div>
+    <div class="overlay" id="banner"></div>
+    <div class="overlay" id="updBar" title="点击立即刷新">🔄 程序已更新，点击这里刷新页面使用新版</div>
+    <div class="overlay" id="vlabel">
+      <button class="btn sm" id="btnTrail">轨迹：关</button>
+      <button class="btn sm" id="btnCover">覆盖圆：关</button>      <button class="btn sm" id="btnFollow">跟随选中：关</button>
+      <button class="btn sm" id="btnFit" title="自动调整视野，把当前可见卫星全部装进来">适配视野</button>
+    </div>
+    <div class="overlay" id="tip"></div>
+    <div class="overlay" id="batchBar"></div>
+    <div id="batchPanel"></div>
+    <div id="obs3d"><div class="pin"></div><div class="lb" id="obs3dLb">观测点</div></div>
+    <section id="passView" aria-label="过境预报">
+      <div class="pv-wrap">
+        <h2>🛰 过境预报</h2>
+        <p class="pv-sub">填入你所在地的经纬度，查看<b>此刻头顶</b>能看到的卫星与<b>未来过境</b>。
+          全部用本地缓存的 CelesTrak 根数 + SGP4 在本机推算，<b>位置不上传</b>；结果随根数缓存时间而变，长时间未联网会有偏差。</p>
+
+        <div class="pv-loc">
+          <div class="pv-field">
+            <label for="pvLat">纬度（-90 ~ 90）</label>
+            <input id="pvLat" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="39.9042 ／ 39°54′15″N ／ 北纬39.9">
+          </div>
+          <div class="pv-field">
+            <label for="pvLon">经度（-180 ~ 180）</label>
+            <input id="pvLon" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="116.4074 ／ 116°23′29″E ／ 东经116.4">
+          </div>
+          <button class="btn pri" id="pvApply">定位</button>
+          <button class="btn" id="pvGeo" title="调用浏览器定位。可能被系统/浏览器拒绝，且需要联网解析">用当前位置</button>
+          <button class="btn" id="pvPick" title="切到 2D 地面轨迹，再点地图选取位置">地图选点</button>
+          <button class="btn" id="pvClear" title="清除观测点（不影响已保存的其他设置）">清除</button>
+        </div>
+        <div class="pv-msg" id="pvMsg"></div>
+
+        <div class="pv-cfg">
+          <span class="lab">最低仰角</span>
+          <select id="pvMinEl">
+            <option value="5">5°</option>
+            <option value="10" selected>10°</option>
+            <option value="15">15°</option>
+            <option value="20">20°</option>
+            <option value="30">30°</option>
+          </select>
+          <span class="lab">卫星范围</span>
+          <select id="pvScope">
+            <option value="all" selected>全部（千帆 + 星网）</option>
+            <option value="qianfan">仅千帆</option>
+            <option value="gw">仅星网低轨</option>
+            <option value="gaogui">仅星网高轨</option>
+          </select>
+          <span class="lab">预报时长</span>
+          <select id="pvHours">
+            <option value="1">1 小时</option>
+            <option value="3" selected>3 小时</option>
+            <option value="6">6 小时</option>
+            <option value="12">12 小时</option>
+            <option value="24">24 小时</option>
+          </select>
+          <button class="btn pri" id="pvGo">计算过境</button>
+        </div>
+        <div class="pv-bar" id="pvBar"><i id="pvBarI"></i></div>
+
+        <div class="pv-body">
+          <section class="pv-col">
+            <h3>此刻头顶 <span class="r" id="pvNowNote"></span></h3>
+            <div id="pvNow" class="pv-list"></div>
+          </section>
+          <section class="pv-col">
+            <h3>未来过境 <span class="r" id="pvUpNote"></span></h3>
+            <div id="pvUp" class="pv-list"></div>
+          </section>
+        </div>
+
+        <p class="pv-foot">
+          「几何过境」＝ 卫星相对观测点的仰角高于设定值的时段，是<b>几何上可见</b>、不是肉眼可见。
+          能否被看到还取决于当时是否处于日照（卫星被太阳照亮）与大气条件，本页不做亮度预测。
+          高轨三星几乎固定在赤道上方，通常不产生「过境」，而是长期停在固定的低仰角位置。
+        </p>
+      </div>
+    </section>
+    <div id="loading"><div class="box"><div class="spin"></div><div id="loadTxt">正在连接 CelesTrak 获取 TLE…</div></div></div>
+  </main>
+
+  <aside id="right">
+    <div class="pane">
+      <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px">选中卫星
+        <button class="btn sm" id="btnDeselect" style="display:none" title="取消选中这颗卫星，回到未选状态">取消选中</button></h3>
+      <div id="detail" class="detail"><div class="hint">在视图或左侧列表中点选一颗卫星，这里显示它的实时状态、所属批次与发射任务。</div></div>
+    </div>
+    <div class="pane">
+      <h3>图例与说明</h3>
+      <div class="legend">
+        <div class="li"><span class="dot" style="background:#e8890c"></span>千帆星座 · QIANFAN</div>
+        <div class="li"><span class="dot" style="background:#257ddd"></span>星网 GW · 86.5° 壳层</div>
+        <div class="li"><span class="dot" style="background:#22c55e"></span>星网 GW · 50° 壳层</div>
+        <div class="li"><span class="dot" style="background:#ef4444"></span>星网高轨（同步轨道）</div>
+        <div class="li" style="margin-top:3px">位置由 CelesTrak TLE + SGP4 本地实时推算（ECEF 坐标系）。</div>
+        <div class="li" style="margin-top:1px">「未正常升轨」＝ 发射超 1 年仍低于 1000 km，否则记「爬升中」。</div>
+        <div class="li" style="margin-top:1px">覆盖圆 ＝ 0° 仰角几何可视边界（按实时高度算）；实际通信范围受最低仰角等条件限制，会更小。</div>
+        <div class="li" style="margin-top:3px;color:var(--muted2)">数据来源：<a href="https://celestrak.org" target="_blank" rel="noopener" style="color:inherit">CelesTrak</a>；发射任务整理自卫星百科。</div>
+      </div>
+    </div>
+    <div class="pane" style="border-bottom:0">
+      <h3>数据状态</h3>
+      <div id="status" class="hint">—</div>
+      <div id="perf" class="hint" style="margin-top:6px;color:var(--muted2)"></div>
+    </div>
+  </aside>
+
+  <footer>
+    <span class="times">时间轴 <span id="offTxt">现在</span></span>
+    <!-- 时间轴整体居中（用户要求 2026-09-30）：绝对定位在窗口水平正中 -->
+    <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:12px">
+      <input type="range" id="timeSlider" min="-1440" max="1440" value="0" step="1" title="相对当前时间偏移（分钟）">
+      <span class="times">−24h ←→ +24h</span>
+    </span>
+    <button id="btnQuit" title="结束后台服务并退出程序（日志见 %LOCALAPPDATA%\ConstellationOrbitViewer\run.log）"
+            style="font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer">退出程序</button>
+  </footer>
+</div>
+
+<script src="/web/satellite.min.js"></script>
+<script src="/web/world.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   星座轨道实时查看器 —— 前端
+   数据：本地后端 /api/tle（CelesTrak TLE）+ SGP4（satellite.js）实时推算
+   坐标：地球固连坐标系 ECEF，地球半径 = 1 场景单位
+   ========================================================================= */
+const R_EARTH = 6378.137;               // km
+const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+// 分组配色；星网低轨按倾角壳层做颜色差分（50° 绿 / 86.5° 蓝），高轨为红
+const RGBA = {
+  qianfan: [232, 137, 12],
+  gw: [47, 125, 225],
+  gw_50: [34, 197, 94],
+  gw_86: [37, 125, 225],
+  gaogui: [239, 68, 68],
+};
+const SHELL_COLORS = { 50: [34, 197, 94], 86: [37, 125, 225] };   // 倾角壳层 → RGB
+const SHELL_CSS = { 50: "#22c55e", 86: "#257ddd" };
+function shellOf(incl) { return (incl != null && incl < 70) ? 50 : 86; }
+
+const S = {
+  groups: {},              // group -> {label,sub,color,...}
+  payload: {},             // group -> 原始响应
+  sats: [],                // 扁平化卫星数组
+  enabled: {},             // 由 /api/groups 动态生成
+  simTime: Date.now(),
+  playing: true,
+  speed: 1,
+  view: "3d",
+  trailOn: false,
+  coverOn: false,
+  followOn: false,
+  trailSpan: 90 * 60 * 1000,   // 轨迹长度 90 分钟（模拟时间）
+  altMin: 0, altMax: 40000,
+  preset: "all",
+  q: "",
+  batchFilter: null,       // {group, batch} —— 组次聚焦（二级页面选中后只看这一批）
+  selected: null,
+  hover: null,
+  visible: [],
+  lastListUpdate: 0,
+  cam: { lon: 110, lat: 22, dist: 3.1 },
+  followSmooth: null,
+};
+
+/* ------------------------------------------------------------------ 工具 */
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const pad2 = (n) => (n < 10 ? "0" : "") + n;
+
+function fmtLocal(d) {
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " +
+    pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+}
+function fmtUTC(d) {
+  return pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
+}
+function fmtDur(ms) {
+  const s = Math.abs(ms / 1000);
+  if (s < 90) return s.toFixed(0) + " 秒";
+  if (s < 5400) return (s / 60).toFixed(1) + " 分钟";
+  if (s < 172800) return (s / 3600).toFixed(1) + " 小时";
+  return (s / 86400).toFixed(1) + " 天";
+}
+function num(v, n) { return (v === null || v === undefined || isNaN(v)) ? "—" : Number(v).toFixed(n === undefined ? 1 : n); }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+async function api(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  const t = await r.text();
+  let j;
+  try { j = JSON.parse(t); } catch (e) { throw new Error("接口返回非 JSON：" + t.slice(0, 160)); }
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+
+/* ------------------------------------------------------------ 世界底图绘制 */
+let MAP_CV = null, MAP_W = 2048, MAP_H = 1024;
+function buildMapCanvas() {
+  const W = MAP_W, H = MAP_H;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "#9ec2e4"); grad.addColorStop(.5, "#93bade"); grad.addColorStop(1, "#9ec2e4");
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+
+  const px = (lon) => (lon + 180) / 360 * W, py = (lat) => (90 - lat) / 180 * H;
+  const land = (window.WORLD_LAND || []);
+
+  // 把经度展开成连续值（相邻点差值压到 ±180 内），
+  // 这样跨 180° 经线的大陆（亚欧非、南极洲）不会在图上拉出一条横线。
+  // 再把整条环平移 -360/0/+360 各画一次，接缝两侧都能正确填充。
+  function unwrapRing(ring) {
+    const out = []; let prev = null;
+    for (const p of ring) {
+      let L = p[0];
+      if (prev !== null) { while (L - prev > 180) L -= 360; while (L - prev < -180) L += 360; }
+      out.push([L, p[1]]); prev = L;
+    }
+    return out;
+  }
+
+  // 判断是否为「环极大陆」（目前数据里只有南极洲）：
+  // 展开后经度跨度 ≥350° 且全部落在高纬一侧。这类环在等经纬投影里，
+  // 大陆内部（极点方向）并不在多边形内部 —— 必须沿图边（±90°）把路径闭合，
+  // 否则南极洲只剩一圈海岸线，中间整块都是「海」。
+  function polarCloseLat(u) {
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const p of u) {
+      if (p[0] < minLon) minLon = p[0]; if (p[0] > maxLon) maxLon = p[0];
+      if (p[1] < minLat) minLat = p[1]; if (p[1] > maxLat) maxLat = p[1];
+    }
+    if (maxLon - minLon < 350) return 0;
+    if (maxLat < -60) return -90;    // 南极向环 → 沿底边闭合
+    if (minLat > 60) return 90;      // 北极向环 → 沿顶边闭合
+    return 0;
+  }
+
+  function addRingPath(g, ring, withPolarClose) {
+    const u = unwrapRing(ring);
+    const polar = polarCloseLat(u) !== 0;
+    if (withPolarClose && polar) {
+      // 环极环填充：跨度已是 360°，沿图边（±90°）闭合才能把大陆内部填出来
+      const pole = polarCloseLat(u);
+      g.moveTo(px(u[0][0]), py(u[0][1]));
+      for (let i = 1; i < u.length; i++) g.lineTo(px(u[i][0]), py(u[i][1]));
+      g.lineTo(px(u[u.length - 1][0]), py(pole));
+      g.lineTo(px(u[0][0]), py(pole));
+      g.closePath();
+      return;
+    }
+    if (polar) {
+      // 环极环描边：绝对不能 closePath —— 展开后首末点经度差恰好 360°，
+      // 闭合会画出一条横穿整幅图的纬线弦，贴到球面上就是绕极点的一个小圈。
+      // 首末点本来就是同一个地理点，不闭合在球面上也是连续的。
+      for (const sh of [-360, 0, 360]) {
+        g.moveTo(px(u[0][0] + sh), py(u[0][1]));
+        for (let i = 1; i < u.length; i++) g.lineTo(px(u[i][0] + sh), py(u[i][1]));
+      }
+      return;
+    }
+    for (const sh of [-360, 0, 360]) {
+      g.moveTo(px(u[0][0] + sh), py(u[0][1]));
+      for (let i = 1; i < u.length; i++) g.lineTo(px(u[i][0] + sh), py(u[i][1]));
+      g.closePath();
+    }
+  }
+
+  g.lineJoin = "round";
+  for (const ring of land) {
+    if (!ring || ring.length < 3) continue;
+    g.beginPath();
+    addRingPath(g, ring, true);
+    g.fillStyle = "#d9e7c6"; g.fill();
+  }
+  // 海岸线（描边不走极地闭合，避免沿图边多描一条线）
+  g.strokeStyle = "rgba(72,106,142,.9)"; g.lineWidth = 1.4;
+  for (const ring of land) {
+    if (!ring || ring.length < 3) continue;
+    g.beginPath();
+    addRingPath(g, ring, false);
+    g.stroke();
+  }
+  // 经纬网 30°
+  g.lineWidth = 1;
+  for (let lat = -60; lat <= 60; lat += 30) {
+    g.strokeStyle = lat === 0 ? "rgba(70,105,145,.6)" : "rgba(100,132,166,.38)";
+    g.beginPath(); g.moveTo(0, py(lat)); g.lineTo(W, py(lat)); g.stroke();
+  }
+  for (let lon = -180; lon <= 180; lon += 30) {
+    // 经线必须画满全高直通两极：本画布同时是 3D 地球的贴图，等经纬投影里
+    // 上下边缘 = 极点，球面上所有经线收拢于极点；若渐隐会让经线在极区悬空不闭合。
+    // 另外贴图在极区被剧烈压缩采样，1px 细线会发糊 → 全程加粗，极区段（|纬度|>60°）再叠一遍加深。
+    // 所有经线一视同仁（2026-09-29 用户反馈：0° 经线不该有加粗特例，比别的都粗很难看）
+    const col = "100,132,166", a = .48, w = 1.6;
+    g.strokeStyle = "rgba(" + col + "," + a + ")";
+    g.lineWidth = w;
+    g.beginPath(); g.moveTo(px(lon), 0); g.lineTo(px(lon), H); g.stroke();
+    g.strokeStyle = "rgba(" + col + "," + Math.min(1, a + .3) + ")";
+    g.lineWidth = w + .8;
+    g.beginPath(); g.moveTo(px(lon), 0); g.lineTo(px(lon), H / 6); g.stroke();
+    g.beginPath(); g.moveTo(px(lon), H * 5 / 6); g.lineTo(px(lon), H); g.stroke();
+  }
+  // 千帆 / 星网的工作轨道带示意（1000–1200 km）不画，保持底图纯净
+  MAP_CV = c;
+}
+
+/* ================================================================= 3D 地球 */
+const GL = { ok: false };
+function initGL() {
+  const cv = $("#cv3d");
+  const gl = cv.getContext("webgl", { antialias: true, alpha: false, preserveDrawingBuffer: true })
+    || cv.getContext("experimental-webgl");
+  if (!gl) { GL.ok = false; return; }
+  GL.gl = gl;
+
+  const vsGlobe = "attribute vec3 aPos;attribute vec2 aUV;uniform mat4 uMVP;varying vec2 vUV;varying vec3 vN;" +
+    "void main(){vUV=aUV;vN=normalize(aPos);gl_Position=uMVP*vec4(aPos,1.0);}";
+  const fsGlobe = "precision mediump float;uniform sampler2D uTex;uniform vec3 uSun;varying vec2 vUV;varying vec3 vN;" +
+    "void main(){vec3 c=texture2D(uTex,vUV).rgb;float d=dot(normalize(vN),normalize(uSun));" +
+    "float lit=clamp(d,0.0,1.0);float lam=0.55+0.55*pow(lit,0.8);vec3 col=c*lam;" +
+    "col=mix(col*vec3(0.80,0.86,1.06),col,smoothstep(-0.18,0.18,d));" +
+    "gl_FragColor=vec4(col,1.0);}";
+  const vsPt = "attribute vec3 aPos;attribute vec3 aColor;attribute float aSize;uniform mat4 uMVP;" +
+    "uniform float uScale;varying vec3 vC;" +
+    "void main(){vC=aColor;vec4 p=uMVP*vec4(aPos,1.0);gl_Position=p;gl_PointSize=aSize*uScale;}";
+  const fsPt = "precision mediump float;varying vec3 vC;" +
+    "void main(){vec2 d=gl_PointCoord-0.5;float r=length(d)*2.0;if(r>1.0)discard;" +
+    "float e=smoothstep(0.86,1.0,r);vec3 col=mix(vC,vec3(1.0),e*0.55);gl_FragColor=vec4(col,1.0);}";
+  const vsLn = "attribute vec3 aPos;attribute vec3 aColor;uniform mat4 uMVP;varying vec3 vC;" +
+    "void main(){vC=aColor;gl_Position=uMVP*vec4(aPos,1.0);}";
+  const fsLn = "precision mediump float;varying vec3 vC;uniform float uAlpha;" +
+    "void main(){gl_FragColor=vec4(vC,uAlpha);}";
+
+  function mk(vsSrc, fsSrc, attrs) {
+    const p = gl.createProgram();
+    const compile = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const o = { p: p, a: {}, u: {} };
+    attrs.forEach(n => o.a[n] = gl.getAttribLocation(p, n));
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const inf = gl.getActiveUniform(p, i); o.u[inf.name.replace("[0]", "")] = gl.getUniformLocation(p, inf.name); }
+    return o;
+  }
+
+  GL.pGlobe = mk(vsGlobe, fsGlobe, ["aPos", "aUV"]);
+  GL.pPt = mk(vsPt, fsPt, ["aPos", "aColor", "aSize"]);
+  GL.pLn = mk(vsLn, fsLn, ["aPos", "aColor"]);
+
+  // --- 球体
+  const LAT = 72, LON = 144, pos = [], uv = [], idx = [];
+  for (let i = 0; i <= LAT; i++) {
+    const lat = 90 - 180 * i / LAT;
+    for (let j = 0; j <= LON; j++) {
+      const lon = -180 + 360 * j / LON;
+      const la = lat * D2R, lo = lon * D2R;
+      pos.push(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
+      uv.push(j / LON, i / LAT);
+    }
+  }
+  for (let i = 0; i < LAT; i++) for (let j = 0; j < LON; j++) {
+    const a = i * (LON + 1) + j, b = a + LON + 1;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  GL.vSphere = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.vSphere);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.STATIC_DRAW);
+  GL.vUV = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.vUV);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uv), gl.STATIC_DRAW);
+  GL.iSphere = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GL.iSphere);
+  const ia = (pos.length / 3 > 65535) ? new Uint32Array(idx) : new Uint16Array(idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ia, gl.STATIC_DRAW);
+  GL.idxCount = idx.length;
+  GL.idxType = (pos.length / 3 > 65535) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+
+  // --- 纹理
+  GL.tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, GL.tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, MAP_CV);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  // 各向异性过滤：极区是以极小的掠射角看贴图，不开这个会明显发糊
+  try {
+    const ext = gl.getExtension("EXT_texture_filter_anisotropic")
+      || gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic")
+      || gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
+    if (ext) {
+      const maxA = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, maxA));
+    }
+  } catch (e) { /* 不支持就算了 */ }
+  gl.generateMipmap(gl.TEXTURE_2D);
+
+  // --- 动态缓冲
+  GL.bPt = gl.createBuffer(); GL.bPtCol = gl.createBuffer(); GL.bPtSz = gl.createBuffer();
+  GL.bLn = gl.createBuffer(); GL.bLnCol = gl.createBuffer();
+  GL.cap = 0;
+  GL.ok = true;
+}
+
+/* --- 极简 mat4（列主序） */
+function m4ident() { return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); }
+function m4persp(fovy, asp, near, far) {
+  const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  return new Float32Array([f / asp, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
+}
+function m4lookAt(eye, ctr, up) {
+  let zx = eye[0] - ctr[0], zy = eye[1] - ctr[1], zz = eye[2] - ctr[2];
+  let l = Math.hypot(zx, zy, zz) || 1; zx /= l; zy /= l; zz /= l;
+  let xx = up[1] * zz - up[2] * zy, xy = up[2] * zx - up[0] * zz, xz = up[0] * zy - up[1] * zx;
+  l = Math.hypot(xx, xy, xz) || 1; xx /= l; xy /= l; xz /= l;
+  const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+  return new Float32Array([
+    xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0,
+    -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+    -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+    -(zx * eye[0] + zy * eye[1] + zz * eye[2]), 1]);
+}
+function m4mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+  }
+  return o;
+}
+function project(mvp, p, w, h) {
+  const x = p[0], y = p[1], z = p[2];
+  const cx = mvp[0] * x + mvp[4] * y + mvp[8] * z + mvp[12];
+  const cy = mvp[1] * x + mvp[5] * y + mvp[9] * z + mvp[13];
+  const cw = mvp[3] * x + mvp[7] * y + mvp[11] * z + mvp[15];
+  if (cw <= 0.0001) return null;
+  return [(cx / cw * .5 + .5) * w, (1 - (cy / cw * .5 + .5)) * h, cw];
+}
+
+/* --- 太阳方向（ECEF 单位向量，低精度太阳历） */
+function sunECEF(date) {
+  const jd = date.getTime() / 86400000 + 2440587.5;
+  const n = jd - 2451545.0;
+  const L = (280.460 + 0.9856474 * n) * D2R;
+  const g = (357.528 + 0.9856003 * n) * D2R;
+  const lam = L + 1.915 * D2R * Math.sin(g) + 0.020 * D2R * Math.sin(2 * g);
+  const eps = (23.439 - 0.0000004 * n) * D2R;
+  const eci = { x: Math.cos(lam), y: Math.cos(eps) * Math.sin(lam), z: Math.sin(eps) * Math.sin(lam) };
+  const gmst = satellite.gstime(date);
+  const ecf = satellite.eciToEcf(eci, gmst);
+  const l = Math.hypot(ecf.x, ecf.y, ecf.z) || 1;
+  return [ecf.x / l, ecf.y / l, ecf.z / l];
+}
+
+/* ================================================================= 数据 */
+async function loadGroups() {
+  try { S.groups = await api("/api/groups"); }
+  catch (e) { S.groups = { qianfan: { label: "千帆星座", sub: "QIANFAN", color: "#e8890c" }, gw: { label: "国网 / 星网 GW", sub: "HULIANWANG", color: "#2f7de1" } }; }
+  const def = { qianfan: true, gw: true, gaogui: true };
+  for (const k of Object.keys(S.groups)) S.enabled[k] = (k in S.enabled) ? S.enabled[k] : (def[k] !== false);
+  renderGroupCards();
+}
+
+async function loadTLE(group, force) {
+  const url = "/api/tle?group=" + encodeURIComponent(group) + (force ? "&force=1" : "");
+  const d = await api(url);
+  S.payload[group] = d;
+  return d;
+}
+
+async function loadAll(force, silent) {
+  if (!silent) {
+    $("#loading").style.display = "grid";
+    $("#loadTxt").textContent = force ? "正在从 CelesTrak 重新拉取 TLE…" : "正在连接 CelesTrak 获取 TLE…";
+  }
+  const want = Object.keys(S.enabled).filter(k => S.enabled[k]);
+  const errs = [];
+  await Promise.all(want.map(async (g) => {
+    try { await loadTLE(g, !!force); }
+    catch (e) {
+      if (!silent) { errs.push(g + "：" + e.message); delete S.payload[g]; }
+      // 静默轮询失败：保留旧数据，安排下一次轮询
+    }
+  }));
+  buildSats();
+  renderGroupCards();
+  renderStatus();
+  const st = want.map(g => S.payload[g]).filter(Boolean);
+  const stale = st.filter(p => p.stale);
+  const refreshing = st.some(p => p.refreshing);
+  const banner = $("#banner");
+  if (errs.length) { banner.className = "overlay err"; banner.style.display = "block"; banner.textContent = "⚠ 数据获取失败：" + errs.join("；"); }
+  else if (stale.length && refreshing) { banner.className = "overlay"; banner.style.display = "block"; banner.textContent = "ℹ 正在后台刷新数据…（当前显示本地缓存，完成后自动更新）"; }
+  else if (stale.length) { banner.className = "overlay"; banner.style.display = "block"; banner.textContent = "⚠ " + stale[0].error + "（显示的是本地缓存，历元可能已过期）"; }
+  else { banner.style.display = "none"; }
+  if (!silent) $("#loading").style.display = "none";
+  schedulePoll();
+}
+
+/* 后台刷新期间每 5 秒静默轮询，数据到手自动换新（不闪遮罩） */
+function schedulePoll() {
+  const refreshing = Object.values(S.payload).some(p => p && p.refreshing);
+  clearTimeout(S._pollT);
+  if (refreshing) S._pollT = setTimeout(() => { loadAll(false, true).catch(() => { }); }, 5000);
+}
+
+function buildSats() {
+  const keep = S.selected ? S.selected.id : null;
+  const out = [];
+  for (const g of Object.keys(S.enabled)) {
+    if (!S.enabled[g] || !S.payload[g]) continue;
+    const arr = S.payload[g].sats || [];
+    for (const r of arr) {
+      const id = g + ":" + r.norad;
+      const s = {
+        id: id, group: g, name: r.name, norad: r.norad,
+        l1: (r.l1 || "").padEnd(69, " "), l2: (r.l2 || "").padEnd(69, " "),
+        epoch: r.epoch, epochAge: r.epoch_age_days,
+        incl: r.incl, mm: r.mm, period: r.period, alt0: r.alt,
+        meta: r.meta || null,
+        color: RGBA[g] || [80, 80, 80],
+        satrec: null, ok: false, trail: [], lastTrail: -1e18,
+      };
+      // 星网低轨按倾角壳层差分上色（50° 绿 / 86.5° 蓝）
+      if (g === "gw" && r.incl != null) {
+        s.shell = shellOf(r.incl);
+        s.color = SHELL_COLORS[s.shell] || s.color;
+      }
+      // 距发射天数：用于判定「爬升中 / 未正常升轨」
+      const m = r.meta || {};
+      const dt = m.launch_time || m.launch_date || m.batch_date || "";
+      const mm = /(\d{4})-(\d{2})-(\d{2})/.exec(dt);
+      if (mm) {
+        const t0 = Date.UTC(+mm[1], +mm[2] - 1, +mm[3]);
+        s.launchDays = Math.floor((Date.now() - t0) / 86400000);
+        s.launchDate = mm[0];
+      }
+      try { s.satrec = satellite.twoline2satrec(s.l1, s.l2); } catch (e) { s.satrec = null; }
+      out.push(s);
+    }
+  }
+  S.sats = out;
+  S.idx = {};
+  for (const s of out) S.idx[s.id] = s;
+  S.selected = keep ? (out.find(x => x.id === keep) || null) : null;
+  propagateAll(new Date(S.simTime));
+  updateList(true);
+  renderDetail();
+}
+
+/* ---------------------------------------------------------- 位置推算 */
+let lastPropMs = 0;
+function propagateAll(date) {
+  const t0 = performance.now();
+  const gmst = satellite.gstime(date);
+  const vis = [];
+  for (const s of S.sats) {
+    if (!s.satrec) { s.ok = false; continue; }
+    let pv = null;
+    try { pv = satellite.propagate(s.satrec, date); } catch (e) { pv = null; }
+    if (!pv || !pv.position) { s.ok = false; continue; }
+    let ecf = null, geo = null;
+    try { ecf = satellite.eciToEcf(pv.position, gmst); geo = satellite.eciToGeodetic(pv.position, gmst); } catch (e) { }
+    if (!ecf || !geo) { s.ok = false; continue; }
+    s.ok = true;
+    s.pos = ecf;                       // km, ECEF
+    s.scene = [ecf.x / R_EARTH, ecf.y / R_EARTH, ecf.z / R_EARTH];
+    s.lon = satellite.degreesLong(geo.longitude);
+    s.lat = satellite.degreesLat(geo.latitude);
+    s.alt = geo.height;
+    s.r = Math.hypot(pv.position.x, pv.position.y, pv.position.z);
+    s.vel = Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z);
+    s.rising = (pv.velocity.x * ecf.x + pv.velocity.y * ecf.y + pv.velocity.z * ecf.z) > 0;
+    s.periodMin = s.mm ? 1440 / s.mm : null;
+    s.visible = passFilter(s);
+    if (s.visible) vis.push(s);
+  }
+  S.visible = vis;
+  lastPropMs = performance.now() - t0;
+}
+
+function passFilter(s) {
+  if (s.alt < S.altMin || s.alt > S.altMax) return false;
+  if (S.preset === "stuck" && !(s.alt < 1000 && s.launchDays > 365)) return false;
+  if (S.batchFilter) {
+    if (s.group !== S.batchFilter.group) return false;
+    const mb = s.meta || {};
+    if ((mb.batch || "") !== S.batchFilter.batch) return false;
+  }
+  if (S.q) {
+    const q = S.q.toLowerCase();
+    const m = s.meta || {};
+    // 国际卫星标识符两种写法都认：2025-046A（官方补零）与 2025-46A（常用省零）
+    const strip0 = (x) => String(x || "").toLowerCase().replace(/-(0+)(?=\d)/g, "-");
+    const hay = (s.name + " " + s.norad + " " + (m.cospar || "") + " " + (m.group || "") + " " + (m.rocket || "") + " " + (m.batch || "")).toLowerCase();
+    const hayN = (s.name + " " + s.norad + " " + strip0(m.cospar) + " " + (m.group || "") + " " + (m.rocket || "") + " " + (m.batch || "")).toLowerCase();
+    if (hay.indexOf(q) < 0 && hayN.indexOf(strip0(q)) < 0) return false;
+  }
+  return true;
+}
+
+/* ------------------------------------------------- 组次（批次）二级页面 */
+/* 每颗星的 meta 里带 batch（COSPAR 前 8 位）、batch_index（第 N 批）、
+   batch_date（北京时间）、batch_size、group/mission、rocket 等字段；
+   这里把它们聚合成组次清单，选中某组后 passFilter 只放行这一批卫星。 */
+
+function batchRows(g) {
+  const map = {};
+  for (const s of S.sats) {
+    if (s.group !== g) continue;
+    const m = s.meta || {};
+    const k = m.batch || (m.cospar ? String(m.cospar).slice(0, 8) : "未分组");
+    let r = map[k];
+    if (!r) {
+      r = map[k] = { key: k, n: 0, label: m.group || m.mission || "",
+        date: m.batch_date || m.launch_time || m.launch_date || "",
+        rocket: m.rocket || "", site: m.batch_site || m.site || "",
+        index: m.batch_index || 0 };
+    }
+    r.n++;
+    if (!r.label && (m.group || m.mission)) r.label = m.group || m.mission;
+    if (!r.date && (m.launch_time || m.launch_date)) r.date = m.launch_time || m.launch_date;
+    if (!r.rocket && m.rocket) r.rocket = m.rocket;
+    if (!r.site && (m.batch_site || m.site)) r.site = m.batch_site || m.site;
+    if (!r.index && m.batch_index) r.index = m.batch_index;
+  }
+  return Object.values(map).sort((a, b) => (a.index || 999) - (b.index || 999) || a.key.localeCompare(b.key));
+}
+
+function showBatchPanel(g) {
+  const info = S.groups[g] || { label: g };
+  const rows = batchRows(g);
+  const cur = S.batchFilter && S.batchFilter.group === g ? S.batchFilter.batch : null;
+  let html = "<div class='bp'><h3>" + esc(info.label) + " · 组次（" + rows.length + " 批）" +
+    "<span style='float:right'><button class='btn sm' data-act='close'>关闭</button></span></h3>";
+  if (!rows.length) html += "<div class='hint'>该星座暂无组次信息（元数据缺失）。</div>";
+  for (const r of rows) {
+    const sub = [r.date, r.rocket, r.site].filter(Boolean).map(esc).join(" · ");
+    html += "<div class='brow" + (cur === r.key ? " on" : "") + "' data-b='" + esc(r.key) + "'>" +
+      "<span class='idx'>" + (r.index || "?") + "</span>" +
+      "<span><span class='t'>" + esc(r.label || ("第 " + (r.index || "?") + " 批")) + "</span>" +
+      "<div class='s'>" + (sub || "—") + " · COSPAR " + esc(r.key) + "</div></span>" +
+      "<span class='n'>在轨 " + r.n + " 颗" + (cur === r.key ? " · 正在查看" : "") + "</span></div>";
+  }
+  html += "<div style='margin-top:10px;display:flex;gap:8px;align-items:center'>" +
+    "<button class='btn sm' data-act='all'" + (cur ? "" : " disabled") + ">显示全部组次</button>" +
+    "<span class='hint'>点击某个组次即可聚焦查看它的卫星与轨道</span></div></div>";
+  const p = $("#batchPanel");
+  p.innerHTML = html;
+  p.style.display = "grid";
+  p.querySelectorAll(".brow").forEach(el => el.addEventListener("click", () => {
+    setBatchFocus(g, el.dataset.b || null);
+    p.style.display = "none";
+  }));
+  p.querySelectorAll("[data-act='all']").forEach(el => el.addEventListener("click", () => { setBatchFocus(g, null); p.style.display = "none"; }));
+  p.querySelectorAll("[data-act='close']").forEach(el => el.addEventListener("click", () => p.style.display = "none"));
+}
+
+function setBatchFocus(g, bk) {
+  if (!bk) { S.batchFilter = null; }
+  else {
+    S.batchFilter = { group: g, batch: bk };
+    S.enabled[g] = true;
+    // 聚焦时自动开轨迹，凸显这一组次的轨道形态（一批最多十几颗，不会超轨迹上限）
+    if (!S.trailOn) $("#btnTrail").click();
+  }
+  propagateAll(new Date(S.simTime));
+  updateList(true);
+  renderGroupCards();
+  renderBatchBar();
+  if (S.batchFilter && S.view === "3d") { try { $("#btnFit").click(); } catch (e) { } }
+  // 正处于爬升视图时，聚焦/退出组次都要即时切换叠加图
+  if (S.view === "raise") {
+    if (S.batchFilter) loadRaiseBatch();
+    else { S._raiseBatchKey = null; if (S.selected) loadRaiseSel(); else $("#raiseFrame").src = RAISE_SRC.qianfan; }
+  }
+}
+
+function renderBatchBar() {
+  const bar = $("#batchBar");
+  const bi = $("#batchInfo");
+  // 组次状态条与 #hud（数据统计）、#banner（数据横幅）同在 top:12px，
+  // 状态条一长就会叠压它们（用户截图反馈 2026-09-30）——组次聚焦时把这两个浮层整体下移
+  const pushTop = S.batchFilter ? "46px" : "12px";
+  const hud = $("#hud"), bnr = $("#banner");
+  if (hud) hud.style.top = pushTop;
+  if (bnr) bnr.style.top = pushTop;
+  if (!S.batchFilter) {
+    bar.style.display = "none";
+    if (bi) bi.style.display = "none";          // 退出组次 → 左栏恢复星座数据源卡片
+    const st = $("#srcTitle"); if (st) st.style.display = "";
+    const gc = $("#gcards"); if (gc) gc.style.display = "";
+    updateVlabel();
+    return;
+  }
+  renderBatchInfo();
+  const g = S.batchFilter.group, info = S.groups[g] || { label: g };
+  const sats = S.visible.filter(s => s.group === g && ((s.meta || {}).batch || "") === S.batchFilter.batch);
+  const m = (sats[0] || {}).meta || {};
+  const label = m.group || m.mission || ("第 " + (m.batch_index || "?") + " 批");
+  // 视图切换统一走顶部页签（3D / 2D 地面轨迹 / 轨道爬升图），这里只放一个
+  // 小的「正在查看」标识 + 退出按钮，避免和页签重复（用户建议 2026-09-29）
+  bar.innerHTML = "<span>🔭 正在查看：" + esc(info.label) + " · " + esc(label) + "（" + sats.length + " 颗）</span>" +
+    "<button class='btn sm' id='batchExit' title='退出组次，恢复显示全部卫星'>退出组次</button>";
+  bar.style.display = "flex";
+  $("#batchExit").addEventListener("click", () => setBatchFocus(g, null));
+  updateVlabel();
+}
+
+// 轨迹/覆盖圆开关只在「有上下文」时出现：选中某颗星或聚焦某组次（用户要求 2026-09-29）。
+// 看全部卫星时隐藏开关并自动复位——473 颗全画圈画线太杂，而且按钮藏着但状态开着会让人困惑。
+function updateVlabel() {
+  const scoped = !!(S.selected || S.batchFilter);
+  const bt = $("#btnTrail"), bc = $("#btnCover");
+  if (bt) bt.style.display = scoped ? "" : "none";
+  if (bc) bc.style.display = scoped ? "" : "none";
+  if (!scoped && (S.trailOn || S.coverOn)) {
+    S.trailOn = false; S.coverOn = false;
+    if (bt) bt.textContent = "轨迹：关";
+    if (bc) bc.textContent = "覆盖圆：关";
+  }
+}
+
+// 组次聚焦时，左栏「星座数据源」位置切换为该组的任务资料（用户要求 2026-09-29）：
+// 火箭 / 发射时间 / 发射场 / COSPAR / 实时高度统计；「组次 ▸」按钮可换看其他组次
+let _biLast = 0;
+function renderBatchInfo() {
+  const bi = $("#batchInfo");
+  const st = $("#srcTitle"), gc = $("#gcards");
+  if (!S.batchFilter) { if (bi) bi.style.display = "none"; if (st) st.style.display = ""; if (gc) gc.style.display = ""; return; }
+  const g = S.batchFilter.group, info = S.groups[g] || { label: g };
+  const sats = S.visible.filter(s => s.group === g && ((s.meta || {}).batch || "") === S.batchFilter.batch);
+  const m = (sats[0] || {}).meta || {};
+  const label = m.group || m.mission || ("第 " + (m.batch_index || "?") + " 批");
+  const alts = sats.map(s => s.alt).filter(v => v != null);
+  const work = alts.filter(v => v >= 1000).length;
+  const avg = alts.length ? alts.reduce((a, b) => a + b, 0) / alts.length : null;
+  const rows = [
+    ["所属星座", info.label, 0],
+    ["任务组次", label, 0],
+  ];
+  if (m.batch) rows.push(["COSPAR 批次", m.batch + "（第 " + (m.batch_index || "?") + " / " + (m.batch_total || "?") + " 批）", 1]);
+  if (m.rocket) rows.push(["运载火箭", m.rocket, 1]);
+  const when = m.launch_time || m.launch_date || m.batch_date;
+  if (when) rows.push(["发射时间", when, 1]);
+  if (m.site || m.batch_site) rows.push(["发射场", m.site || m.batch_site, 1]);
+  if (m.plane) rows.push(["轨道面", m.plane, 1]);
+  if (alts.length) rows.push(["实时高度", num(Math.min(...alts), 0) + " – " + num(Math.max(...alts), 0) + " km（均值 " + num(avg, 0) + "）", 1]);
+  if (alts.length) rows.push(["轨道状态", "工作轨道 " + work + " 颗 · 爬升/低轨 " + (alts.length - work) + " 颗", 1]);
+  if (bi) {
+    bi.innerHTML = "<h3 style='display:flex;justify-content:space-between;align-items:center;gap:8px'>组次资料" +
+      "<button class='btn sm' id='biOpenBatch' title='打开组次列表，换看其他组次'>组次 ▸</button></h3>" +
+      "<div class='grid'>" + rows.map(r =>
+        "<div class='cell" + (r[2] ? " wide" : "") + "'><div class='k'>" + r[0] + "</div>" +
+        "<div class='v' style='font-size:12.5px'>" + esc(r[1]) + "</div></div>").join("") + "</div>";
+    bi.style.display = "";
+    if (st) st.style.display = "none";
+    if (gc) gc.style.display = "none";
+    _biLast = performance.now();
+  }
+}
+
+function sampleTrails(simTime) {
+  // 90 分钟轨迹拆 ~400 个采样点（约 13.5s 一个）：密度太低时 1× 速度下轨迹尾要等
+  // 一分多钟才长一截，用户会觉得"刷新慢"（2026-09-29 用户反馈，原 span/70≈77s 太粗）
+  const span = S.trailSpan, step = Math.max(6000, span / 400);
+  for (const s of S.visible) {
+    if (simTime - s.lastTrail < step) continue;
+    s.lastTrail = simTime;
+    if (s.lon === undefined) continue;
+    const t = s.trail;
+    const prev = t[t.length - 1];
+    if (prev && Math.abs(prev[0] - s.lon) > 180) t.push([s.lon, s.lat, simTime, 1]);
+    else t.push([s.lon, s.lat, simTime, 0]);
+    const cut = simTime - span;
+    while (t.length && t[0][2] < cut) t.shift();
+    while (t.length > 420) t.shift();
+  }
+}
+
+// 打开轨迹开关时立即回推过去整个轨迹窗口（90 分钟）的星下点：否则轨迹要等模拟时间慢慢推进
+// 才积攒出来，用户点「轨迹：开」后好一阵看不到线，会误以为开关是假的（2026-09-29 用户反馈）
+function seedTrails() {
+  // 记录本次回推基准的模拟时刻：时间轴大幅跳变时主循环据此触发重建
+  S._seedSim = S.simTime;
+  // 回推密度与 sampleTrails 一致（90 分钟 / 60 点 ≈ 90s 一个点），473 颗全量回推约半秒
+  const span = S.trailSpan, N = 60, STEP = span / N, now = S.simTime;
+  for (const s of S.visible) {
+    if (!s.satrec) continue;
+    s.trail.length = 0;
+    s.lastTrail = now;
+    const pts = [];
+    for (let i = N; i >= 1; i--) {
+      const t = new Date(now - i * STEP);
+      try {
+        const pv = satellite.propagate(s.satrec, t);
+        if (!pv || !pv.position) continue;
+        const g = satellite.eciToGeodetic(pv.position, satellite.gstime(t));
+        pts.push([satellite.degreesLong(g.longitude), satellite.degreesLat(g.latitude), t.getTime(), 0]);
+      } catch (e) { }
+    }
+    for (let k = 1; k < pts.length; k++) {
+      if (Math.abs(pts[k][0] - pts[k - 1][0]) > 180) pts[k][3] = 1;   // 跨 180° 断笔，与 sampleTrails 同规则
+    }
+    for (const p of pts) s.trail.push(p);
+  }
+}
+
+/* ================================================================= 渲染 */
+function fitCanvas() {
+  const stage = $("#stage"), r = stage.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(320, Math.round(r.width * dpr));
+  const h = Math.max(220, Math.round(r.height * dpr));
+  for (const id of ["#cv3d", "#cv2d"]) {
+    const c = $(id);
+    if (c && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
+  }
+  return dpr;
+}
+
+function cameraMatrix(w, h) {
+  const la = clamp(S.cam.lat, -89.5, 89.5) * D2R, lo = S.cam.lon * D2R, d = S.cam.dist;
+  const eye = [d * Math.cos(la) * Math.cos(lo), d * Math.cos(la) * Math.sin(lo), d * Math.sin(la)];
+  const proj = m4persp(32 * D2R, w / h, 0.02, 100);
+  const view = m4lookAt(eye, [0, 0, 0], [0, 0, 1]);
+  return { m: m4mul(proj, view), eye: eye };
+}
+
+function render3D(dpr) {
+  const gl = GL.gl, cv = $("#cv3d"), w = cv.width, h = cv.height;
+  gl.viewport(0, 0, w, h);
+  const bg = [0.937, 0.957, 0.976, 1];
+  gl.clearColor(bg[0], bg[1], bg[2], 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const { m, eye } = cameraMatrix(w, h);
+
+  // 地球
+  const g1 = GL.pGlobe, gl2 = gl;
+  gl2.useProgram(g1.p);
+  gl2.uniformMatrix4fv(g1.u.uMVP, false, m);
+  const su = sunECEF(new Date(S.simTime));
+  gl2.uniform3f(g1.u.uSun, su[0], su[1], su[2]);
+  gl2.activeTexture(gl2.TEXTURE0); gl2.bindTexture(gl2.TEXTURE_2D, GL.tex);
+  gl2.uniform1i(g1.u.uTex, 0);
+  gl2.bindBuffer(gl2.ARRAY_BUFFER, GL.vSphere);
+  gl2.enableVertexAttribArray(g1.a.aPos); gl2.vertexAttribPointer(g1.a.aPos, 3, gl2.FLOAT, false, 0, 0);
+  gl2.bindBuffer(gl2.ARRAY_BUFFER, GL.vUV);
+  gl2.enableVertexAttribArray(g1.a.aUV); gl2.vertexAttribPointer(g1.a.aUV, 2, gl2.FLOAT, false, 0, 0);
+  gl2.bindBuffer(gl2.ELEMENT_ARRAY_BUFFER, GL.iSphere);
+  gl2.drawElements(gl2.TRIANGLES, GL.idxCount, GL.idxType, 0);
+  gl2.disableVertexAttribArray(g1.a.aUV);
+
+  const scale = Math.max(0.75, h / 900);
+
+  // 轨迹线：选中卫星时只画这一颗的轨迹（用户要求 2026-09-29）。未选中时画「当前正对相机
+  // 半球」的卫星（按星座轮询取，上限 60 颗）——原先固定取列表前 24 颗，拖动旋转后这 24 颗
+  // 可能全在地球背面，看起来"轨迹拖动一下就没了"（用户反馈 2026-09-30）。
+  const trailSats = [];
+  if (S.trailOn) {
+    if (S.selected) trailSats.push(S.selected);
+    else {
+      const byG = {};
+      for (const s of S.visible) {
+        if (s.trail.length < 4 || s.lat === undefined) continue;
+        const la = s.lat * D2R, lo = s.lon * D2R, rr = 1 + (s.alt || 0) / R_EARTH;
+        // 卫星在地平线上方才可见：E·P > |P|²（P = 卫星位置向量，E = 相机位置，地球半径 = 1）
+        const dot = rr * (Math.cos(la) * Math.cos(lo) * eye[0] + Math.cos(la) * Math.sin(lo) * eye[1] + Math.sin(la) * eye[2]);
+        if (dot > rr * rr) (byG[s.group] = byG[s.group] || []).push(s);
+      }
+      const gs = Object.keys(byG);
+      for (let i = 0; trailSats.length < 60; i++) {
+        let added = false;
+        for (const g of gs) {
+          if (byG[g].length > i) { trailSats.push(byG[g][i]); added = true; if (trailSats.length >= 60) break; }
+        }
+        if (!added) break;
+      }
+    }
+  }
+  if (trailSats.length) {
+    const vp = [], vc = [];
+    for (const s of trailSats) {
+      const c = s.color.map(v => v / 255);
+      let prev = null;
+      for (const p of s.trail) {
+        const la = p[1] * D2R, lo = p[0] * D2R, rr = 1.004;
+        const v = [rr * Math.cos(la) * Math.cos(lo), rr * Math.cos(la) * Math.sin(lo), rr * Math.sin(la)];
+        if (p[3] === 1) prev = null;
+        if (prev) { vp.push(prev[0], prev[1], prev[2], v[0], v[1], v[2]); vc.push(c[0], c[1], c[2], c[0], c[1], c[2]); }
+        prev = v;
+      }
+    }
+    if (vp.length) {
+      const pl = GL.pLn; gl2.useProgram(pl.p);
+      gl2.uniformMatrix4fv(pl.u.uMVP, false, m);
+      gl2.uniform1f(pl.u.uAlpha, 0.5);
+      uploadAttr(GL.bLn, pl.a.aPos, vp, 3);
+      uploadAttr(GL.bLnCol, pl.a.aColor, vc, 3);
+      gl2.drawArrays(gl2.LINES, 0, vp.length / 3);
+    }
+  }
+
+  // 覆盖圆（3D 视图）：每颗可见卫星的地球表面可视圈。
+  // 之前只有 2D 视图画了覆盖圆，3D 下开关点了没有任何视觉效果（2026-09-29 用户反馈"开关是假的"）。
+  // 圆的角半径 β 满足 cosβ = R/(R+alt)；用星下点切平面基在球面上画闭合圈。
+  // 选中卫星时只画这一颗的覆盖圆（用户要求 2026-09-29），未选中时画全部。
+  if (S.coverOn && S.visible.length) {
+    const covList = S.selected ? [S.selected] : S.visible;
+    const vp = [], vc = [], SEG = 30;
+    for (const s of covList) {
+      if (s.alt == null || s.lat === undefined) continue;
+      const c = s.color.map(v => v / 255);
+      const rr = 1 + s.alt / R_EARTH;
+      const beta = Math.acos(Math.min(1, 1 / rr));
+      const la = s.lat * D2R, lo = s.lon * D2R;
+      const n = [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
+      const u = [-Math.sin(lo), Math.cos(lo), 0];
+      const w = [-n[2] * Math.cos(lo), -n[2] * Math.sin(lo), Math.cos(la)];
+      const cb = Math.cos(beta), sb = Math.sin(beta);
+      let prev = null;
+      for (let i = 0; i <= SEG; i++) {
+        const ph = i / SEG * 2 * Math.PI, cu = Math.cos(ph) * sb, su = Math.sin(ph) * sb;
+        const v = [(cb * n[0] + cu * u[0] + su * w[0]) * 1.002,
+                   (cb * n[1] + cu * u[1] + su * w[1]) * 1.002,
+                   (cb * n[2] + cu * u[2] + su * w[2]) * 1.002];
+        if (prev) { vp.push(prev[0], prev[1], prev[2], v[0], v[1], v[2]); vc.push(c[0], c[1], c[2], c[0], c[1], c[2]); }
+        prev = v;
+      }
+    }
+    if (vp.length) {
+      const pl = GL.pLn; gl2.useProgram(pl.p);
+      gl2.uniformMatrix4fv(pl.u.uMVP, false, m);
+      gl2.uniform1f(pl.u.uAlpha, 0.3);
+      uploadAttr(GL.bLn, pl.a.aPos, vp, 3);
+      uploadAttr(GL.bLnCol, pl.a.aColor, vc, 3);
+      gl2.drawArrays(gl2.LINES, 0, vp.length / 3);
+    }
+  }
+
+  // 选中卫星的当前轨道圈 + 星下点连线
+  if (S.selected && S.selected.ok && S.selected.periodMin) {
+    const s = S.selected, N = 180, per = s.periodMin * 60000;
+    const vp = [], vc = [];
+    for (let i = 0; i <= N; i++) {
+      const t = new Date(S.simTime + (i / N - 0.5) * per);
+      let pv = null;
+      try { pv = satellite.propagate(s.satrec, t); } catch (e) { pv = null; }
+      if (!pv || !pv.position) continue;
+      const gm = satellite.gstime(t), e2 = satellite.eciToEcf(pv.position, gm);
+      vp.push(e2.x / R_EARTH, e2.y / R_EARTH, e2.z / R_EARTH);
+      vc.push(.98, .30, .24);
+    }
+    // 星下点（把卫星方向向量投影到球面）
+    const l = len3(s.scene);
+    vp.push(s.scene[0], s.scene[1], s.scene[2]);
+    vc.push(.98, .30, .24);
+    vp.push(s.scene[0] / l, s.scene[1] / l, s.scene[2] / l);
+    vc.push(.98, .30, .24);
+    const pl = GL.pLn; gl2.useProgram(pl.p);
+    gl2.uniformMatrix4fv(pl.u.uMVP, false, m);
+    gl2.uniform1f(pl.u.uAlpha, 0.95);
+    uploadAttr(GL.bLn, pl.a.aPos, vp, 3);
+    uploadAttr(GL.bLnCol, pl.a.aColor, vc, 3);
+    gl2.drawArrays(gl2.LINE_STRIP, 0, vp.length / 3 - 2);
+    gl2.drawArrays(gl2.LINES, vp.length / 3 - 2, 2);
+  }
+
+  // 卫星点
+  const pp = GL.pPt; gl2.useProgram(pp.p);
+  gl2.uniformMatrix4fv(pp.u.uMVP, false, m);
+  gl2.uniform1f(pp.u.uScale, scale);
+  gl2.enable(gl2.BLEND); gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA);
+  const vp = [], vc = [], vs = [];
+  for (const s of S.visible) {
+    const isSel = S.selected && s.id === S.selected.id;
+    const c = isSel ? [0.95, 0.20, 0.18] : s.color.map(v => v / 255);
+    vp.push(s.scene[0], s.scene[1], s.scene[2]);
+    vc.push(c[0], c[1], c[2]);
+    vs.push(isSel ? 11 : (s === S.hover ? 8 : 4.4));
+    // 星下点小点
+    const la = s.lat * D2R, lo = s.lon * D2R, rr = 1.002;
+    vp.push(rr * Math.cos(la) * Math.cos(lo), rr * Math.cos(la) * Math.sin(lo), rr * Math.sin(la));
+    vc.push(c[0], c[1], c[2]);
+    vs.push(isSel ? 6 : 2.3);
+  }
+  if (vp.length) {
+    uploadAttr(GL.bPt, pp.a.aPos, vp, 3);
+    uploadAttr(GL.bPtCol, pp.a.aColor, vc, 3);
+    uploadAttr(GL.bPtSz, pp.a.aSize, vs, 1);
+    gl2.drawArrays(gl2.POINTS, 0, vp.length / 3);
+  }
+  cacheMVP = m;
+}
+let cacheMVP = null;
+function len3(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return l; }
+
+function uploadAttr(buf, loc, data, n) {
+  const gl = GL.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
+}
+
+/* ------------------------------------------------------------ 2D 地图 */
+// 夜半球掩膜（720x360，按 0.5° 太阳位置缓存）
+let _nightCv = null, _nightKey = null;
+function nightMask(sunLon, sunLat) {
+  const NW = 720, NH = 360;
+  const key = (Math.round(sunLon * 2) + 720) + "_" + Math.round(sunLat * 2);
+  if (_nightCv && _nightKey === key) return _nightCv;
+  const c = document.createElement("canvas"); c.width = NW; c.height = NH;
+  const ng = c.getContext("2d");
+  const img = ng.createImageData(NW, NH);
+  const sl = Math.sin(sunLat * D2R), cl = Math.cos(sunLat * D2R);
+  const d = img.data;
+  for (let j = 0; j < NH; j++) {
+    const lat = 90 - (j + 0.5) * 180 / NH;
+    const sLat = Math.sin(lat * D2R), cLat = Math.cos(lat * D2R);
+    for (let i = 0; i < NW; i++) {
+      const lon = -180 + (i + 0.5) * 360 / NW;
+      // 太阳高度角正弦 = sin(lat)sin(dec) + cos(lat)cos(dec)cos(lon - sunLon)
+      const alt = sLat * sl + cLat * cl * Math.cos((lon - sunLon) * D2R);
+      if (alt < 0) {
+        const k = (j * NW + i) * 4;
+        d[k] = 26; d[k + 1] = 48; d[k + 2] = 78; d[k + 3] = 56;   // rgba(26,48,78,.22)
+      }
+    }
+  }
+  ng.putImageData(img, 0, 0);
+  _nightCv = c; _nightKey = key;
+  return c;
+}
+
+function mapLayout(w, h) {
+  const mh = Math.min(h, w / 2), mw = mh * 2;
+  return { ox: (w - mw) / 2, oy: (h - mh) / 2, mw, mh };
+}
+let CTX2D = null;
+function render2D(dpr) {
+  const cv = $("#cv2d"), w = cv.width, h = cv.height;
+  if (!CTX2D || CTX2D.canvas !== cv) CTX2D = cv.getContext("2d");
+  const g = CTX2D;
+  const L = mapLayout(w, h);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = "#eef2f7"; g.fillRect(0, 0, w, h);
+  g.drawImage(MAP_CV, L.ox, L.oy, L.mw, L.mh);
+  const xy = (lon, lat) => [L.ox + (lon + 180) / 360 * L.mw, L.oy + (90 - lat) / 180 * L.mh];
+
+  // 夜间区：按像素判定太阳高度角（晨昏圈是过了极点的大圆，在等经纬投影里
+  // 「夜区含极点」时用多边形沿图边闭合表达不出来 —— 秋分前后会整块画错）。
+  // 生成 360x180 的小掩膜再拉伸，按 0.5° 缓存，不会每帧重算。
+  const su = sunECEF(new Date(S.simTime));
+  const sunLon = satellite.degreesLong(Math.atan2(su[1], su[0]));
+  const sunLat = satellite.degreesLat(Math.asin(clamp(su[2], -1, 1)));
+  g.save();
+  g.beginPath(); g.rect(L.ox, L.oy, L.mw, L.mh); g.clip();
+  g.imageSmoothingEnabled = true;
+  g.drawImage(nightMask(sunLon, sunLat), L.ox, L.oy, L.mw, L.mh);
+  g.restore();
+
+  // 轨迹：选中卫星时只画这一颗的（与 3D 同规则），未选中时画前 61 颗
+  if (S.trailOn) {
+    const list = S.selected ? [S.selected] : S.visible.slice(0, 61);
+    g.lineWidth = Math.max(1, dpr * 1.0);
+    for (const s of list) {
+      if (!s.trail || s.trail.length < 2) continue;
+      g.strokeStyle = "rgba(" + s.color.join(",") + ",.42)";
+      g.beginPath();
+      let pen = false, prev = null;
+      for (const p of s.trail) {
+        if (p[3] === 1) pen = false;
+        const q = xy(p[0], p[1]);
+        if (prev && Math.abs(q[0] - prev[0]) > L.mw / 2) pen = false;
+        if (!pen) { g.moveTo(q[0], q[1]); pen = true; } else g.lineTo(q[0], q[1]);
+        prev = q;
+      }
+      g.stroke();
+    }
+  }
+
+  // 卫星点
+  const rBase = Math.max(1.9, dpr * 2.0);
+  for (const s of S.visible) {
+    const p = xy(s.lon, s.lat);
+    const isSel = S.selected && s.id === S.selected.id;
+    // 选中卫星时只画这一颗的覆盖圆；未选中时开覆盖圆画全部。选中的星不管开关都画（聚焦效果）
+    if (isSel || (S.coverOn && !S.selected)) {
+      const gr = horizonKm(s.alt) / 111.32;
+      g.beginPath();
+      g.ellipse(p[0], p[1], gr / 360 * L.mw, gr / 180 * L.mh, 0, 0, Math.PI * 2);
+      g.fillStyle = "rgba(" + s.color.join(",") + ",.10)";
+      g.strokeStyle = "rgba(" + s.color.join(",") + ",.42)";
+      g.lineWidth = 1; g.fill(); g.stroke();
+    }
+  }
+  for (const s of S.visible) {
+    const p = xy(s.lon, s.lat);
+    const isSel = S.selected && s.id === S.selected.id;
+    const r = isSel ? rBase * 2.6 : (s === S.hover ? rBase * 1.9 : rBase);
+    g.beginPath(); g.arc(p[0], p[1], r, 0, Math.PI * 2);
+    g.fillStyle = isSel ? "#f0332b" : "rgb(" + s.color.join(",") + ")";
+    g.fill();
+    g.lineWidth = Math.max(1, dpr * 0.9); g.strokeStyle = "rgba(255,255,255,.95)"; g.stroke();
+    if (isSel) {
+      g.beginPath(); g.arc(p[0], p[1], r * 2.6, 0, Math.PI * 2);
+      g.strokeStyle = "rgba(240,51,43,.8)"; g.lineWidth = dpr * 1.2; g.stroke();
+    }
+  }
+  const mp = xy(sunLon, sunLat);
+  g.beginPath(); g.arc(mp[0], mp[1], dpr * 5, 0, Math.PI * 2);
+  g.fillStyle = "rgba(255,205,60,.85)"; g.fill();
+
+  // 观测点（过境预报）：地面可视圈（按最低仰角）× 十字标
+  if (OBS.lat != null) {
+    const op = xy(OBS.lon, OBS.lat);
+    g.save();
+    g.beginPath(); g.rect(L.ox, L.oy, L.mw, L.mh); g.clip();
+    // 由最低仰角反推地面可视半径：γ = acos(Re/(Re+h)·cos e) − e，取星网高度作参考
+    const hRef = 1150;
+    const gam = Math.acos(clamp(R_EARTH / (R_EARTH + hRef) * Math.cos(OBS.minEl * D2R), -1, 1)) - OBS.minEl * D2R;
+    const gd = R_EARTH * gam / 111.32;     // 地面角半径（度）
+    g.beginPath();
+    g.ellipse(op[0], op[1], gd / 360 * L.mw, gd / 180 * L.mh, 0, 0, Math.PI * 2);
+    g.fillStyle = "rgba(224,52,43,.07)"; g.fill();
+    g.setLineDash([dpr * 5, dpr * 4]);
+    g.strokeStyle = "rgba(224,52,43,.7)"; g.lineWidth = Math.max(1, dpr * 1.1); g.stroke();
+    g.setLineDash([]);
+    const rr = dpr * 7;
+    g.strokeStyle = "#e0342b"; g.lineWidth = Math.max(1.4, dpr * 1.5);
+    g.beginPath();
+    g.moveTo(op[0] - rr, op[1]); g.lineTo(op[0] + rr, op[1]);
+    g.moveTo(op[0], op[1] - rr); g.lineTo(op[0], op[1] + rr);
+    g.stroke();
+    g.beginPath(); g.arc(op[0], op[1], dpr * 3.4, 0, Math.PI * 2);
+    g.fillStyle = "#fff"; g.fill(); g.strokeStyle = "#e0342b"; g.lineWidth = Math.max(1, dpr * 1.1); g.stroke();
+    g.font = (dpr * 11) + "px system-ui,-apple-system,'Segoe UI',sans-serif";
+    g.fillStyle = "rgba(200,40,32,.95)";
+    g.fillText("观测点 " + num(Math.abs(OBS.lat), 2) + "°" + (OBS.lat >= 0 ? "N" : "S") + " " +
+      num(Math.abs(OBS.lon), 2) + "°" + (OBS.lon >= 0 ? "E" : "W") + "（" + OBS.minEl + "° 视野）",
+      op[0] + rr + dpr * 3, op[1] + dpr * 3.5);
+    g.restore();
+  }
+  cacheMVP = null;
+}
+
+function horizonKm(alt) {
+  const a = R_EARTH + alt;
+  return R_EARTH * Math.acos(clamp(R_EARTH / a, -1, 1));
+}
+
+/* ================================================================= 主循环 */
+let lastFrame = performance.now();
+let lastPropSim = -1;
+function loop(ts) {
+  const dtReal = Math.min(250, ts - lastFrame); lastFrame = ts;
+  if (S.playing && S.speed > 0) S.simTime += dtReal * S.speed;
+  const now = new Date(S.simTime);
+  // 暂停且时间未变时不必重复推算，让拖动旋转更顺滑
+  if (S.simTime !== lastPropSim) {
+    // 时间轴拖动/回到现在会让 simTime 大幅跳变：裁剪窗口会把旧轨迹点全部剪掉，
+    // 1× 速度下新点 13.5s 才补一个，轨迹看起来"拖动一下就没了"（用户反馈 2026-09-30）。
+    // 跳变超过 10 分钟（模拟时）就整体回推重建轨迹窗口，轨迹立即恢复完整。
+    if (S.trailOn && Math.abs(S.simTime - (S._seedSim || 0)) > 10 * 60 * 1000) seedTrails();
+    propagateAll(now);
+    sampleTrails(S.simTime);
+    lastPropSim = S.simTime;
+  }
+  if (S.followOn && S.selected && S.selected.ok) {
+    S.cam.lon += shortestDelta(S.cam.lon, S.selected.lon) * 0.12;
+    S.cam.lat += (S.selected.lat - S.cam.lat) * 0.12;
+  }
+  draw();
+  updateClock();
+  if (ts - S.lastListUpdate > 1500) { S.lastListUpdate = ts; updateListValues(); }
+  if (S.view === "pass" && ts - lastObsUpd > 1500) { lastObsUpd = ts; renderObsNow(); }
+  requestAnimationFrame(loop);
+}
+function shortestDelta(a, b) { let d = (b - a) % 360; if (d > 180) d -= 360; if (d < -180) d += 360; return d; }
+
+let DPR = 1;
+function draw() {
+  if (S.view === "pass") {                       // 过境预报是纯 HTML 面板，不必每帧重绘画布
+    const el = $("#obs3d"); if (el) el.style.display = "none";
+    return;
+  }
+  if (S.view === "3d" && GL.ok) render3D(DPR); else render2D(DPR);
+  updateObs3d();
+  drawHUD();
+}
+function drawHUD() {
+  const vis = S.visible;
+  const raising = vis.filter(s => s.alt < 1000).length;
+  const off = S.simTime - Date.now();
+  $("#hud").innerHTML =
+    "<div><span class='k'>可见卫星</span> <b>" + vis.length + "</b> / " + S.sats.length + "</div>" +
+    "<div><span class='k'>其中 &lt;1000 km（爬升/低轨）</span> <b>" + raising + "</b></div>" +
+    "<div><span class='k'>时间偏移</span> <b>" + (Math.abs(off) < 1500 ? "实时" : (off > 0 ? "+" : "−") + fmtDur(off)) + "</b></div>";
+  $("#offTxt").textContent = Math.abs(off) < 30000 ? "现在" : (off > 0 ? "+" : "−") + fmtDur(off);
+}
+
+function updateClock() {
+  const d = new Date(S.simTime);
+  $("#tLocal").textContent = fmtLocal(d);
+  $("#tUtc").textContent = "UTC " + d.toISOString().slice(0, 10) + " " + fmtUTC(d);
+  const offMin = Math.round((S.simTime - Date.now()) / 60000);
+  const sl = $("#timeSlider");
+  if (document.activeElement !== sl) sl.value = clamp(offMin, -1440, 1440);
+}
+
+/* ================================================================= 面板 */
+function renderGroupCards() {
+  const box = $("#gcards"); box.innerHTML = "";
+  for (const g of Object.keys(S.enabled)) {
+    const info = S.groups[g] || { label: g, sub: "" };
+    const p = S.payload[g];
+    const d = document.createElement("div");
+    d.className = "gcard" + (S.enabled[g] ? "" : " off");
+    d.dataset.g = g;
+    const col = "#" + (RGBA[g] || [120, 120, 120]).map(v => v.toString(16).padStart(2, "0")).join("");
+    let kv = "<span>未加载</span>";
+    if (p) {
+      const age = p.epoch_age_days;
+      const stale = age != null && age > 3;
+      kv = "<span>在轨 <b>" + p.count + "</b> 颗</span>";
+      if (p.no_tle > 0) kv += "<span>另 <b>" + p.no_tle + "</b> 颗暂无公开根数</span>";
+      kv += "<span>历元 <b>" + (p.epoch_max ? p.epoch_max.replace("T", " ").replace("Z", "") : "—") + "</b></span>" +
+        "<span class='epoch-age" + (stale ? " old" : "") + "'>数据龄 <b>" + num(age, 2) + "</b> 天</span>";
+      // 星网：按倾角壳层统计
+      if (g === "gw") {
+        const c = {};
+        for (const s of (p.sats || [])) if (s.incl != null) { const k = shellOf(s.incl); c[k] = (c[k] || 0) + 1; }
+        kv += "<span>" + Object.keys(c).sort().map(k =>
+          "<span class='dot' style='display:inline-block;width:7px;height:7px;background:" + SHELL_CSS[k] + "'></span> " + k + "° <b>" + c[k] + "</b>").join("　") + "</span>";
+      }
+    }
+    d.innerHTML =
+      "<div class='top'><span class='dot' style='background:" + col + "'></span>" +
+      "<span class='nm'>" + esc(info.label) + "</span>" +
+      "<button class='btn sm' data-act='batch' title='按发射组次分批查看（二级页面）'>组次 ▸</button>" +
+      "<button class='btn sm' data-act='refresh' title='重新拉取该星座 TLE'>↻</button>" +
+      "<label class='switch'><input type='checkbox' data-act='toggle' " + (S.enabled[g] ? "checked" : "") + "><i></i></label></div>" +
+      "<div class='sub'>" + esc(info.sub || "") + "</div>" +
+      "<div class='kv'>" + kv + "</div>";
+    box.appendChild(d);
+  }
+}
+
+function renderStatus() {
+  const rows = [];
+  for (const g of Object.keys(S.payload)) {
+    const p = S.payload[g];
+    rows.push("<div style='margin-bottom:5px'><b>" + esc(p.label) + "</b><br>" +
+      "来源：" + esc(p.source || "CelesTrak") + "<br>" +
+      "抓取：" + esc(p.fetched_at || "—") + (p.from_cache ? "（本地缓存）" : "") + "<br>" +
+      (p.stale ? "<span style='color:var(--warn)'>状态：缓存兜底 · " + esc(p.error || "") + "</span>" : "<span style='color:var(--ok)'>状态：在线数据</span>") +
+      "</div>");
+  }
+  const ages = Object.keys(S.payload).map(g => S.payload[g].epoch_age_days).filter(v => v != null);
+  rows.push("<div style='margin-top:6px'>TLE 历元最新数据龄约 <b>" + (ages.length ? Math.min.apply(null, ages).toFixed(2) : "—") + " 天</b>；后端每 2 小时缓存刷新一次。</div>");
+  $("#status").innerHTML = rows.join("");
+}
+
+function updateList(rebuild) {
+  const box = $("#list");
+  const arr = S.visible.slice().sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }));
+  $("#listNote").textContent = arr.length + " 颗";
+  $("#statNote").textContent = "命中 " + arr.length + " / " + S.sats.length;
+  const LIMIT = 460;
+  const show = arr.slice(0, LIMIT);
+  const frag = document.createDocumentFragment();
+  for (const s of show) {
+    const d = document.createElement("div");
+    d.className = "item" + (S.selected && S.selected.id === s.id ? " sel" : "");
+    d.dataset.id = s.id;
+    const hasAlt = (s.alt !== undefined && s.alt !== null);
+    let badge = "", cls = "";
+    if (hasAlt) {
+      if (s.alt >= 20000) { badge = "同步轨道"; cls = "ok"; }
+      else if (s.alt >= 1000) { badge = "工作轨道"; cls = "ok"; }
+      else if (s.launchDays != null && s.launchDays > 365) { badge = "未正常升轨"; }
+      else { badge = "爬升中"; cls = "mid"; }
+    }
+    d.innerHTML = "<span class='dot' style='background:rgb(" + s.color.join(",") + ")'></span>" +
+      "<span class='n'>" + esc(s.name) + "</span>" +
+      (badge ? "<span class='badge " + cls + "'>" + badge + "</span>" : "") +
+      "<span class='a'>" + (hasAlt ? num(s.alt, 1) + " km" : "—") + "</span>";
+    frag.appendChild(d);
+  }
+  box.innerHTML = "";
+  box.appendChild(frag);
+  if (arr.length > LIMIT) {
+    const more = document.createElement("div");
+    more.className = "hint"; more.style.padding = "8px";
+    more.textContent = "另有 " + (arr.length - LIMIT) + " 颗未在此列出，请用搜索或高度筛选缩小范围。";
+    box.appendChild(more);
+  }
+  renderBatchBar();
+}
+
+function updateListValues() {
+  const box = $("#list");
+  for (const el of box.querySelectorAll(".item")) {
+    const s = S.idx[el.dataset.id];
+    if (!s) continue;
+    const a = el.querySelector(".a");
+    if (a && s.alt !== undefined && s.alt !== null) a.textContent = num(s.alt, 1) + " km";
+  }
+  if (S.selected) renderDetail();
+  // 组次资料的实时高度统计每 2 秒刷一次（innerHTML 不适合每帧重建）
+  if (S.batchFilter && performance.now() - _biLast > 2000) renderBatchInfo();
+  const pf = $("#perf");
+  if (pf) pf.textContent = "本机 SGP4 推算：" + S.sats.length + " 颗 / 每帧约 " + lastPropMs.toFixed(1) + " ms";
+  drawHUD();
+}
+
+function renderDetail() {
+  const s = S.selected;
+  const ds = $("#btnDeselect");
+  if (ds) ds.style.display = s ? "" : "none";   // 有选中才显示「取消选中」
+  const box = $("#detail");
+  if (!s) {
+    box.innerHTML = "<div class='hint'>在视图或左侧列表中点选一颗卫星，这里显示它的实时状态、所属批次与发射任务。</div>";
+    return;
+  }
+  const m = s.meta || {};
+  const rows = [
+    ["高度", s.alt !== undefined ? num(s.alt, 1) + " km" : "—"],
+    ["速度", s.vel !== undefined ? num(s.vel, 2) + " km/s" : "—"],
+    ["倾角", s.incl != null ? num(s.incl, 2) + "°" : "—"],
+    ["周期", s.periodMin ? num(s.periodMin, 2) + " min" : "—"],
+    ["星下点纬度", s.lat !== undefined ? num(s.lat, 3) + "°" : "—"],
+    ["星下点经度", s.lon !== undefined ? num(s.lon, 3) + "°" : "—"],
+    ["升交点赤经", s.satrec && s.satrec.nodeo != null ? num(s.satrec.nodeo * R2D, 2) + "°" : "—"],
+    ["偏心率", s.satrec && s.satrec.ecco != null ? s.satrec.ecco.toFixed(6) : "—"],
+  ];
+  const launch = [];
+  if (m.cospar) launch.push(["国际卫星标识符", m.cospar]);
+  if (m.group || m.mission) launch.push(["任务组次", m.group || m.mission]);
+  if (m.rocket) launch.push(["运载火箭", m.rocket]);
+  if (m.launch_time || m.launch_date || m.batch_date) launch.push(["发射时间", m.launch_time || m.launch_date || m.batch_date]);
+  if (m.site || m.batch_site) launch.push(["发射场", m.site || m.batch_site]);
+  if (m.plane) launch.push(["轨道面", m.plane]);
+  if (m.batch) launch.push(["发射批次", m.batch + "（本星座第 " + m.batch_index + " / " + m.batch_total + " 批，同批 " + m.batch_size + " 颗）"]);
+
+  let html = "<div class='ttl'><span class='dot' style='background:rgb(" + s.color.join(",") + ")'></span>" + esc(s.name) + "</div>";
+  html += "<div class='cs'>NORAD " + s.norad + " · " + esc((S.groups[s.group] || {}).label || s.group) +
+    " · TLE 历元 " + esc((s.epoch || "—").replace("T", " ").replace("Z", "")) +
+    (s.epochAge != null ? "（" + num(s.epochAge, 2) + " 天前）" : "") + "</div>";
+  // 运载火箭 + 遥号提到最上面：这是点选时最想看的信息，不该藏在滚动区下面。
+  // 研制方（卫星百科「研发机构 / 研制单位」，按组次给）一并放在这里——
+  // 它跟火箭一样属于「这批星是谁做的」，用户点选时就该直接看到（2026-10-06 加）。
+  if (m.rocket || m.dev || m.launch_time || m.launch_date || m.batch_date || s.launchDate) {
+    const when = m.launch_time || m.launch_date || m.batch_date || s.launchDate || "";
+    html += "<div style='margin:8px 0 10px;padding:8px 10px;border-radius:8px;" +
+      "background:rgba(47,125,225,.09);border:1px solid rgba(47,125,225,.22)'>" +
+      "<div class='k' style='font-size:11px;color:var(--muted2)'>运载火箭</div>" +
+      "<div class='v' style='font-size:14px;font-weight:600'>" + esc(m.rocket || "—") + "</div>" +
+      (when ? "<div style='font-size:11.5px;color:var(--muted2);margin-top:2px'>发射：" + esc(when) +
+        (m.site ? " · " + esc(m.site) : "") + "</div>" : "") +
+      (m.dev ? "<div style='margin-top:6px;padding-top:6px;border-top:1px dashed rgba(47,125,225,.30)'>" +
+        "<div class='k' style='font-size:11px;color:var(--muted2)'>研制方</div>" +
+        "<div class='v' style='font-size:13px;font-weight:600'>" + esc(m.dev) + "</div></div>" : "") +
+      "</div>";
+  }
+  html += "<div class='grid'>" + rows.map(r => "<div class='cell'><div class='k'>" + r[0] + "</div><div class='v'>" + r[1] + "</div></div>").join("") + "</div>";
+  if (launch.length) {
+    html += "<h3 style='margin:12px 0 6px'>发射与批次</h3><div class='grid'>" +
+      launch.map(r => "<div class='cell wide'><div class='k'>" + r[0] + "</div><div class='v' style='font-size:12.5px'>" + esc(r[1]) + "</div></div>").join("") + "</div>";
+  }
+  if (s.alt < 1000) {
+    html += "<div class='hint' style='margin-top:9px;color:var(--warn)'>当前高度 &lt; 1000 km：仍在爬升或处于低轨运行阶段。</div>";
+  }
+  box.innerHTML = html;
+}
+
+/* ================================================================= 交互 */
+const RAISE_SRC = {
+  qianfan: "/web/raise/千帆星座轨道爬升交互大图.html",
+  gw: "/web/raise/国网低轨卫星轨道爬升交互大图.html",
+};
+
+// 选中卫星 → 爬升图页直出该星的单星历史曲线（数据源头为 CelesTrak 逐日积累）
+function loadRaiseSel() {
+  const s = S.selected;
+  if (!s || !s.norad) return;
+  const btn = $("#raiseSelBtn");
+  btn.style.display = "";
+  const nm = String(s.name || ("NORAD " + s.norad));
+  btn.textContent = "★ " + (nm.length > 12 ? nm.slice(0, 11) + "…" : nm);
+  btn.title = nm + "（NORAD " + s.norad + "）";
+  // 用 query 而不是 hash：仅 hash 变化时浏览器视为同一文档、iframe 不会重新加载
+  const url = "/web/raise/sat.html?norad=" + s.norad;
+  if (S._raiseSelNorad === String(s.norad) &&
+      $("#raiseFrame").src.indexOf("sat.html") >= 0) return;
+  S._raiseSelNorad = String(s.norad);
+  for (const x of $("#raiseBar").querySelectorAll("button[data-r]")) x.classList.toggle("on", x === btn);
+  $("#raiseFrame").src = url;
+}
+
+// 组次聚焦 → 爬升图页直出该组全部卫星的叠加历史曲线
+function loadRaiseBatch() {
+  if (!S.batchFilter) return false;
+  const url = "/web/raise/batch.html?group=" + encodeURIComponent(S.batchFilter.group) +
+              "&batch=" + encodeURIComponent(S.batchFilter.batch);
+  // 与 loadRaiseSel 同理：src 完全一致时不重载，避免 iframe 闪烁
+  if (S._raiseBatchKey === url) return true;
+  S._raiseBatchKey = url;
+  S._raiseSelNorad = null;
+  for (const x of $("#raiseBar").querySelectorAll("button[data-r]")) x.classList.toggle("on", false);
+  $("#raiseFrame").src = url;
+  return true;
+}
+
+function updateRaiseForSel() {
+  const btn = $("#raiseSelBtn");
+  if (!S.selected) { btn.style.display = "none"; S._raiseSelNorad = null; return; }
+  if (S.view === "raise") loadRaiseSel();
+  else {
+    // 非爬升视图只更新按钮文案，等切过去时再加载
+    const nm = String(S.selected.name || ("NORAD " + S.selected.norad));
+    btn.style.display = "";
+    btn.textContent = "★ " + (nm.length > 12 ? nm.slice(0, 11) + "…" : nm);
+    btn.title = nm + "（NORAD " + S.selected.norad + "）";
+  }
+}
+
+function activeCanvas() { return S.view === "2d" ? $("#cv2d") : $("#cv3d"); }
+
+function pickAt(cx, cy) {
+  const cv = activeCanvas(), r = cv.getBoundingClientRect();
+  const x = cx - r.left, y = cy - r.top;
+  let best = null, bestD = 196;   // 14 CSS px 半径平方
+  if (S.view === "2d") {
+    if (!r.width) return null;
+    const L = mapLayout(cv.width, cv.height);
+    const fx = r.width / cv.width, fy = r.height / cv.height;
+    const tol = 10;   // 2D 视图：命中半径放宽到 10 CSS px
+    bestD = tol * tol;
+    for (const s of S.visible) {
+      const px = (L.ox + (s.lon + 180) / 360 * L.mw) * fx;
+      const py = (L.oy + (90 - s.lat) / 180 * L.mh) * fy;
+      const d = (px - x) * (px - x) + (py - y) * (py - y);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+  } else if (cacheMVP && r.width) {
+    const fx = r.width / cv.width, fy = r.height / cv.height;
+    // 相机位置（单位：地球半径），用于剔除被地球挡住的卫星
+    const la = clamp(S.cam.lat, -89.5, 89.5) * D2R, lo = S.cam.lon * D2R, d = S.cam.dist;
+    const eye = [d * Math.cos(la) * Math.cos(lo), d * Math.cos(la) * Math.sin(lo), d * Math.sin(la)];
+    for (const s of S.visible) {
+      const p = project(cacheMVP, s.scene, cv.width, cv.height);
+      if (!p) continue;
+      // 地平线剔除：卫星到相机的连线若与单位球相交（且卫星比切点远）则被地球挡住
+      const ex = s.scene[0] - eye[0], ey = s.scene[1] - eye[1], ez = s.scene[2] - eye[2];
+      const a = ex * ex + ey * ey + ez * ez;
+      const b = 2 * (eye[0] * ex + eye[1] * ey + eye[2] * ez);
+      const c = eye[0] * eye[0] + eye[1] * eye[1] + eye[2] * eye[2] - 1;
+      const disc = b * b - 4 * a * c;
+      if (a > 0 && disc > 0) {
+        const t = (-b - Math.sqrt(disc)) / (2 * a);   // 离相机最近的交点
+        if (t > 0 && t < 1) continue;                 // 地球在中间 → 看不见
+      }
+      const px = p[0] * fx, py = p[1] * fy;
+      const d2 = (px - x) * (px - x) + (py - y) * (py - y);
+      if (d2 < bestD) { bestD = d2; best = s; }
+    }
+  }
+  return best;
+}
+
+/* ================================================================= 过境预报 */
+/* 观测点(经纬度) → 本地几何可见性(仰角/方位/距离) → 此刻头顶 + 未来过境。
+   全部在浏览器端用已缓存的 TLE + satellite.js(SGP4) 推算：不联网、不上传位置。
+   只做「几何可见」判定（仰角高于阈值），不做日照/亮度判定，故称「几何过境」。 */
+const OBS = {
+  lat: null, lon: null,
+  minEl: 10, scope: "all", hours: 3,
+  geom: null,      // {x,y,z,e,n,u} 观测点 ECEF(km) 与 ENU 基向量
+  passes: [],      // 未来过境列表
+  computing: false,
+  pick: false,     // 「地图选点」等待拾取
+};
+const OBS_KEY = "cov.observer.v1";
+const WGS_A = 6378.137, WGS_F = 1 / 298.257223563;
+const OBS_MINEL = [5, 10, 15, 20, 30], OBS_HOURS = [1, 3, 6, 12, 24], OBS_SCOPE = ["all", "qianfan", "gw", "gaogui"];
+let lastObsUpd = 0, _passSeq = 0;
+
+function obsSanitize() {
+  if (!OBS_MINEL.includes(OBS.minEl)) OBS.minEl = 10;
+  if (!OBS_HOURS.includes(OBS.hours)) OBS.hours = 3;
+  if (!OBS_SCOPE.includes(OBS.scope)) OBS.scope = "all";
+}
+function obsSave() {
+  try {
+    localStorage.setItem(OBS_KEY, JSON.stringify({
+      lat: OBS.lat, lon: OBS.lon, minEl: OBS.minEl, scope: OBS.scope, hours: OBS.hours,
+    }));
+  } catch (e) { }
+}
+function obsRestore() {
+  try {
+    const o = JSON.parse(localStorage.getItem(OBS_KEY) || "{}") || {};
+    if (isFinite(o.lat) && isFinite(o.lon) && Math.abs(o.lat) <= 90 && Math.abs(o.lon) <= 180) {
+      OBS.lat = Number(o.lat); OBS.lon = Number(o.lon);
+    }
+    if (o.minEl != null) OBS.minEl = Number(o.minEl);
+    if (o.hours != null) OBS.hours = Number(o.hours);
+    if (o.scope != null) OBS.scope = String(o.scope);
+  } catch (e) { }
+  obsSanitize();
+}
+
+/* ---- 经纬度解析：十进制 / 度分秒 / N-S-E-W / 中文方位。越界一律报错，绝不悄悄截断 ---- */
+const _DIRS = { N: 1, S: -1, E: 1, W: -1 };
+function parseCoordOne(raw, kind) {
+  const isLat = kind === "lat";
+  let s = String(raw == null ? "" : raw).trim();
+  if (!s) return { value: null };
+  const orig = s;
+  s = s.replace(/[−–—－]/g, "-").replace(/＋/g, "+")
+    .replace(/[°º˚度]/g, " ").replace(/[′'’`]/g, " ").replace(/[″"”]/g, " ")
+    .replace(/北纬|北/g, " N ").replace(/南纬|南/g, " S ")
+    .replace(/东经|东/g, " E ").replace(/西经|西/g, " W ");
+  const toks = s.split(/[\s,;，、]+/).filter(Boolean);
+  const nums = []; let dir = 0;
+  for (const t of toks) {
+    const u = t.toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(_DIRS, u)) { dir = _DIRS[u]; continue; }
+    const m = u.match(/^([+-]?\d+(?:\.\d+)?)([NSEW])$/);
+    if (m) { nums.push(parseFloat(m[1])); dir = _DIRS[m[2]]; continue; }
+    if (!/^[+-]?\d+(?:\.\d+)?$/.test(u)) return { error: "无法识别「" + orig + "」" };
+    nums.push(parseFloat(u));
+  }
+  if (!nums.length) return { error: "无法识别「" + orig + "」" };
+  const sg = nums[0] < 0 ? -1 : 1;
+  let v;
+  if (nums.length === 1) v = nums[0];
+  else if (nums.length === 2) v = nums[0] + sg * nums[1] / 60;
+  else v = nums[0] + sg * (nums[1] / 60 + nums[2] / 3600);
+  if (dir) v = Math.abs(v) * dir;
+  const lim = isLat ? 90 : 180;
+  if (!isFinite(v)) return { error: "无法识别「" + orig + "」" };
+  if (Math.abs(v) > lim) return { error: (isLat ? "纬度" : "经度") + " " + num(v, 4) + "° 超出 ±" + lim + "° 范围" };
+  return { value: v };
+}
+function fmtLatLon(lat, lon) {
+  return num(Math.abs(lat), 4) + "°" + (lat >= 0 ? "N" : "S") + "　" +
+    num(Math.abs(lon), 4) + "°" + (lon >= 0 ? "E" : "W");
+}
+
+/* ---- 观测点几何：WGS84 大地坐标 → ECEF(km) + 东/北/天 基向量 ---- */
+function observerEcef(lat, lon, altM) {
+  const e2 = WGS_F * (2 - WGS_F), h = (altM || 0) / 1000;
+  const la = lat * D2R, lo = lon * D2R, sl = Math.sin(la), cl = Math.cos(la);
+  const N = WGS_A / Math.sqrt(1 - e2 * sl * sl);
+  return {
+    x: (N + h) * cl * Math.cos(lo), y: (N + h) * cl * Math.sin(lo), z: (N * (1 - e2) + h) * sl,
+    e: [-Math.sin(lo), Math.cos(lo), 0],
+    n: [-sl * Math.cos(lo), -sl * Math.sin(lo), cl],
+    u: [cl * Math.cos(lo), cl * Math.sin(lo), sl],
+  };
+}
+function lookFromObs(ecf, o) {
+  const dx = ecf.x - o.x, dy = ecf.y - o.y, dz = ecf.z - o.z;
+  const rng = Math.hypot(dx, dy, dz) || 1;
+  const u = (dx * o.u[0] + dy * o.u[1] + dz * o.u[2]) / rng;
+  const e = (dx * o.e[0] + dy * o.e[1] + dz * o.e[2]) / rng;
+  const nn = (dx * o.n[0] + dy * o.n[1] + dz * o.n[2]) / rng;
+  let az = Math.atan2(e, nn) * R2D; if (az < 0) az += 360;
+  return { el: Math.asin(clamp(u, -1, 1)) * R2D, az: az, range: rng };
+}
+function elAt(s, ms, o) {
+  try {
+    const d = new Date(ms);
+    const pv = satellite.propagate(s.satrec, d);
+    if (!pv || !pv.position) return null;
+    return lookFromObs(satellite.eciToEcf(pv.position, satellite.gstime(d)), o).el;
+  } catch (e) { return null; }
+}
+function bisectCross(s, msIn, msOut, o, thr) {
+  let a = msIn, b = msOut;
+  for (let k = 0; k < 22; k++) {
+    const m = (a + b) / 2, e = elAt(s, m, o);
+    if (e === null) break;
+    if (e >= thr) a = m; else b = m;
+  }
+  return (a + b) / 2;
+}
+function obsScopeSats() {
+  return S.sats.filter(s => s.satrec && (OBS.scope === "all" || s.group === OBS.scope));
+}
+
+/* ---- 此刻头顶 ---- */
+function obsRowStyle(s) {
+  const g = S.groups[s.group] || {};
+  const col = s.color ? "rgb(" + s.color.join(",") + ")" : (g.color || "#888");
+  return { col: col, label: g.label || s.group };
+}
+function renderObsNow() {
+  const box = $("#pvNow"), note = $("#pvNowNote");
+  if (!box) return;
+  if (OBS.lat == null || !OBS.geom) {
+    box.innerHTML = "<div class='pv-empty'>填入观测点经纬度后，这里显示此刻仰角高于设定值的卫星。</div>";
+    note.textContent = ""; return;
+  }
+  const o = OBS.geom, rows = [];
+  for (const s of obsScopeSats()) {
+    if (!s.ok || !s.pos) continue;
+    const L = lookFromObs(s.pos, o);
+    if (L.el >= OBS.minEl) rows.push([s, L]);
+  }
+  rows.sort((a, b) => b[1].el - a[1].el);
+  note.textContent = rows.length ? rows.length + " 颗 ≥ " + OBS.minEl + "°" : "0 颗";
+  if (!rows.length) {
+    box.innerHTML = "<div class='pv-empty'>此刻没有仰角 ≥ " + OBS.minEl + "° 的卫星（可把最低仰角调低）。</div>";
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const st = obsRowStyle(r[0]);
+    return "<div class='pv-row now' style='border-left:3px solid " + st.col + "'>" +
+      "<span class='nm'>" + esc(r[0].name) + "</span>" +
+      "<span class='mt'>" + esc(st.label) + " · " + num(r[0].alt, 0) + " km</span>" +
+      "<span class='rt'><b>" + num(r[1].el, 1) + "°</b><div class='mt'>方位 " + num(r[1].az, 0) +
+      "° · " + num(r[1].range, 0) + " km</div></span></div>";
+  }).join("");
+}
+
+/* ---- 未来过境：逐颗扫描仰角时间序列，取上/下穿阈值的时段（二分细化到秒） ---- */
+async function computePasses() {
+  if (OBS.computing) return;
+  const msg = $("#pvMsg");
+  if (OBS.lat == null || !OBS.geom) {
+    msg.className = "pv-msg err"; msg.textContent = "请先填入观测点经纬度并点「定位」。"; return;
+  }
+  const sats = obsScopeSats();
+  if (!sats.length) { msg.className = "pv-msg err"; msg.textContent = "当前没有可用的卫星根数。"; return; }
+  const seq = ++_passSeq;
+  OBS.computing = true; OBS.passes = [];
+  const bar = $("#pvBar"), barI = $("#pvBarI"), btn = $("#pvGo");
+  bar.classList.add("on"); barI.style.width = "0%"; btn.disabled = true;
+  $("#pvUpNote").textContent = "计算中…";
+  const o = OBS.geom, thr = OBS.minEl;
+  const t0 = Date.now(), tEnd = t0 + OBS.hours * 3600e3;
+  const step = OBS.hours <= 1 ? 20000 : (OBS.hours <= 3 ? 30000 : (OBS.hours <= 6 ? 45000 : 60000));
+  const found = [], CHUNK = 24;
+  try {
+    for (let i = 0; i < sats.length; i++) {
+      const s = sats[i];
+      let prevT = t0, prevEl = elAt(s, t0, o), inPass = false, cur = null;
+      if (prevEl !== null && prevEl >= thr) {
+        inPass = true;
+        cur = { sat: s, start: t0, maxEl: prevEl, maxT: t0, end: null, partialStart: true };
+      }
+      for (let t = t0 + step; t <= tEnd; t += step) {
+        const e = elAt(s, t, o);
+        if (e === null) { prevEl = null; prevT = t; continue; }
+        if (!inPass && prevEl !== null && prevEl < thr && e >= thr) {
+          inPass = true;
+          cur = { sat: s, start: bisectCross(s, t, prevT, o, thr), maxEl: e, maxT: t, end: null };
+        }
+        if (inPass) {
+          if (e > cur.maxEl) { cur.maxEl = e; cur.maxT = t; }
+          if (e < thr) {
+            cur.end = bisectCross(s, prevT, t, o, thr);
+            found.push(cur); inPass = false; cur = null;
+          }
+        }
+        prevEl = e; prevT = t;
+      }
+      if (inPass && cur) { cur.end = tEnd; cur.partialEnd = true; found.push(cur); }
+      if (i % CHUNK === CHUNK - 1) {
+        if (seq !== _passSeq) return;            // 被新一次计算取代
+        barI.style.width = Math.round((i + 1) / sats.length * 100) + "%";
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+    if (seq !== _passSeq) return;
+    found.sort((a, b) => a.start - b.start);
+    OBS.passes = found;
+    // ★ 必须先把 computing 落成 false 再渲染：renderPassList 在「计算中」会直接返回，
+    //   否则结果算出来了列表却永远是空的（自检 _chk_pass 项 11c 抓出来的真 bug）。
+    OBS.computing = false;
+    bar.classList.remove("on"); btn.disabled = false;
+    renderPassList();
+    msg.className = "pv-msg ok";
+    msg.textContent = "未来 " + OBS.hours + " 小时内共 " + found.length + " 次几何过境（仰角 ≥ " + OBS.minEl + "°）。";
+  } catch (e) {
+    msg.className = "pv-msg err"; msg.textContent = "推算失败：" + (e && e.message ? e.message : e);
+  } finally {
+    if (seq === _passSeq) { OBS.computing = false; bar.classList.remove("on"); btn.disabled = false; }
+  }
+}
+function renderPassList() {
+  const box = $("#pvUp"), note = $("#pvUpNote");
+  if (!box) return;
+  if (OBS.computing) return;
+  if (OBS.lat == null) {
+    box.innerHTML = "<div class='pv-empty'>填入观测点后点「计算过境」。</div>";
+    note.textContent = ""; return;
+  }
+  const ps = OBS.passes;
+  note.textContent = ps.length ? ps.length + " 次 / " + OBS.hours + " h" : "";
+  if (!ps.length) {
+    box.innerHTML = "<div class='pv-empty'>还没有结果。点「计算过境」跑一遍；若确实为空，可降低最低仰角或延长预报时长。</div>";
+    return;
+  }
+  const now = Date.now();
+  box.innerHTML = ps.slice(0, 100).map(p => {
+    const st = obsRowStyle(p.sat);
+    const live = now >= p.start && now <= p.end;
+    const mins = Math.max(1, Math.round((p.end - p.start) / 60000));
+    const when = live ? "进行中" : fmtLocal(new Date(p.start)).slice(5, 16);
+    return "<div class='pv-row" + (live ? " now" : "") + "' style='border-left:3px solid " + st.col + "'>" +
+      "<span class='nm'>" + esc(p.sat.name) + "</span>" +
+      "<span class='mt'>" + esc(st.label) + " · " + num(p.sat.alt, 0) + " km</span>" +
+      "<span class='rt'><b>" + when + "</b><div class='mt'>最高 " + num(p.maxEl, 1) + "° · " +
+      mins + " 分</div></span></div>";
+  }).join("");
+}
+
+/* ---- 观测点应用 / 清除 / 定位 / 地图取点 ---- */
+function applyObserver(fromInputs, quiet) {
+  const msg = $("#pvMsg");
+  if (fromInputs) {
+    const r1 = parseCoordOne($("#pvLat").value, "lat");
+    const r2 = parseCoordOne($("#pvLon").value, "lon");
+    const err = r1.error || r2.error;
+    if (err) { msg.className = "pv-msg err"; msg.textContent = err; return false; }
+    if (r1.value == null || r2.value == null) {
+      msg.className = "pv-msg err";
+      msg.textContent = "纬度和经度都要填（例如 39.9 与 116.4；也可填 39°54′15″N 这种度分秒）。";
+      return false;
+    }
+    OBS.lat = r1.value; OBS.lon = r2.value;
+  }
+  if (OBS.lat == null) return false;
+  OBS.geom = observerEcef(OBS.lat, OBS.lon, 0);
+  OBS.passes = [];
+  obsSave();
+  $("#pvLat").value = num(OBS.lat, 4);
+  $("#pvLon").value = num(OBS.lon, 4);
+  if (!quiet) {
+    msg.className = "pv-msg ok";
+    msg.textContent = "观测点： " + fmtLatLon(OBS.lat, OBS.lon) + "（仅存本机，不上传）";
+  }
+  renderObsNow(); renderPassList();
+  return true;
+}
+function clearObserver() {
+  OBS.lat = OBS.lon = null; OBS.geom = null; OBS.passes = [];
+  obsSave();
+  $("#pvLat").value = ""; $("#pvLon").value = "";
+  const msg = $("#pvMsg"); msg.className = "pv-msg"; msg.textContent = "已清除观测点。";
+  renderObsNow(); renderPassList();
+}
+function obsGeo() {
+  const msg = $("#pvMsg");
+  if (!navigator.geolocation) { msg.className = "pv-msg err"; msg.textContent = "此环境不支持浏览器定位，请手动填入经纬度。"; return; }
+  msg.className = "pv-msg"; msg.textContent = "正在请求定位…（可能被系统拒绝）";
+  navigator.geolocation.getCurrentPosition(
+    (p) => { OBS.lat = p.coords.latitude; OBS.lon = p.coords.longitude; applyObserver(false, false); },
+    (err) => {
+      msg.className = "pv-msg err";
+      msg.textContent = "定位失败（" + ((err && err.message) || (err && err.code) || "未知原因") + "）。可以手动填入经纬度或点「地图选点」。";
+    },
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
+  );
+}
+function obsStartPick() {
+  S.setView("2d");
+  OBS.pick = true;
+  const msg = $("#pvMsg");
+  msg.className = "pv-msg"; msg.textContent = "请在 2D 地图上点击你所在的位置（点完自动填入）。";
+}
+function obsPickAt(cx, cy) {
+  const cv = $("#cv2d"), r = cv.getBoundingClientRect();
+  if (!r.width) return false;
+  const L = mapLayout(cv.width, cv.height);
+  const x = (cx - r.left) / r.width * cv.width;
+  const y = (cy - r.top) / r.height * cv.height;
+  const lon = (x - L.ox) / L.mw * 360 - 180;
+  const lat = 90 - (y - L.oy) / L.mh * 180;
+  if (!isFinite(lat) || !isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    const m = $("#pvMsg");
+    m.className = "pv-msg err";
+    m.textContent = "那一下点到地图外了（等经纬投影四周有留白），请在陆海图范围内再点一次。";
+    return false;   // 保持 pick=true，让用户直接重试
+  }
+  OBS.lat = lat; OBS.lon = lon;
+  OBS.pick = false;
+  applyObserver(false, true);
+  const msg = $("#pvMsg");
+  msg.className = "pv-msg ok";
+  msg.textContent = "已从地图取点： " + fmtLatLon(lat, lon) + "（仅存本机，不上传）";
+  return true;
+}
+function obsPaste(e) {
+  const txt = (e.clipboardData || window.clipboardData).getData("text") || "";
+  const parts = txt.split(/[\s,;，、]+/).filter(Boolean);
+  if (parts.length !== 2) return;                        // 单个值 / 多值：交给默认粘贴
+  const a = parseCoordOne(parts[0], "lon"), b = parseCoordOne(parts[1], "lon");
+  if (a.error || b.error || a.value == null || b.value == null) return;
+  let lat = a.value, lon = b.value, swapped = false;
+  if (Math.abs(lat) > 90 && Math.abs(lon) <= 90) { const t = lat; lat = lon; lon = t; swapped = true; }
+  if (Math.abs(lat) > 90) return;                        // 两个都不像纬度 → 交默认行为
+  e.preventDefault();
+  $("#pvLat").value = num(lat, 4); $("#pvLon").value = num(lon, 4);
+  const msg = $("#pvMsg");
+  msg.className = "pv-msg ok";
+  msg.textContent = "已按「纬度, 经度」拆分粘贴内容" + (swapped ? "（前一段像经度，已自动对调）" : "") + "。";
+}
+
+/* ---- 3D 视图里的观测点标记（DOM 覆盖层，不改 WebGL 点缓冲） ---- */
+function updateObs3d() {
+  const el = $("#obs3d");
+  if (!el) return;
+  if (S.view !== "3d" || !GL.ok || OBS.lat == null || !OBS.geom || !cacheMVP) { el.style.display = "none"; return; }
+  const cv = $("#cv3d");
+  const la = clamp(S.cam.lat, -89.5, 89.5) * D2R, lo = S.cam.lon * D2R, d = S.cam.dist;
+  const eye = [d * Math.cos(la) * Math.cos(lo), d * Math.cos(la) * Math.sin(lo), d * Math.sin(la)];
+  // 抬到球面之上一点点（≈25 km）：观测点正好落在球面上时，射线与单位球的
+  // 近交点会因浮点误差落到 t≈1，被下面的地平线剔除误判成"被地球挡住"。
+  const k = 1.004 / R_EARTH;
+  const p3 = [OBS.geom.x * k, OBS.geom.y * k, OBS.geom.z * k];
+  const ex = p3[0] - eye[0], ey = p3[1] - eye[1], ez = p3[2] - eye[2];
+  const A = ex * ex + ey * ey + ez * ez;
+  const B = 2 * (eye[0] * ex + eye[1] * ey + eye[2] * ez);
+  const C = eye[0] * eye[0] + eye[1] * eye[1] + eye[2] * eye[2] - 1;
+  const disc = B * B - 4 * A * C;
+  if (A > 0 && disc > 0) {
+    const t = (-B - Math.sqrt(disc)) / (2 * A);
+    if (t > 0 && t < 1) { el.style.display = "none"; return; }   // 被地球挡住
+  }
+  const p = project(cacheMVP, p3, cv.width, cv.height);
+  if (!p) { el.style.display = "none"; return; }
+  const r = cv.getBoundingClientRect();
+  el.style.display = "block";
+  el.style.left = (p[0] / cv.width * r.width) + "px";
+  el.style.top = (p[1] / cv.height * r.height) + "px";
+  const lb = $("#obs3dLb");
+  if (lb) lb.textContent = "观测点 " + num(Math.abs(OBS.lat), 1) + "°" + (OBS.lat >= 0 ? "N" : "S") + " " +
+    num(Math.abs(OBS.lon), 1) + "°" + (OBS.lon >= 0 ? "E" : "W");
+}
+
+function bindUI() {
+  // 视图切换
+  const setView = (v) => {
+    S.view = v;
+    for (const x of $("#viewSeg").children) x.classList.toggle("on", x.dataset.v === v);
+    $("#stage").classList.toggle("v2d", v === "2d");
+    $("#stage").classList.toggle("vraise", v === "raise");
+    $("#stage").classList.toggle("vpass", v === "pass");
+    const pv = $("#passView");
+    if (pv) pv.classList.toggle("on", v === "pass");
+    if (v !== "2d") OBS.pick = false;
+    if (v === "pass") { updateObs3d(); renderObsNow(); renderPassList(); }
+    $("#raiseFrame").style.display = (v === "raise") ? "block" : "none";
+    $("#raiseBar").style.display = (v === "raise") ? "flex" : "none";
+    if (v === "raise") {
+      // 首次进入优先级：组次聚焦 → 整组叠加图；选中卫星 → 单星爬升图；否则千帆总览
+      if (!loadRaiseBatch()) {
+        if (S.selected) loadRaiseSel();
+        // loadRaiseSel 内部有去重（同一颗星不重载、不闪烁）；
+        // 换选了别的星就会刷新 —— 修复：以前 src 非空就不再加载，换选星后图表停留在上一颗（2026-09-30 自检发现）
+        else if (!$("#raiseFrame").getAttribute("src")) $("#raiseFrame").src = RAISE_SRC.qianfan;
+      }
+    }
+    fitCanvas();
+    if (v === "2d") CTX2D = null;
+  };
+  S.setView = setView;
+  $("#viewSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    setView(b.dataset.v);
+  });
+  $("#raiseBar").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-r]"); if (!b) return;
+    if (b.dataset.r === "sel") { loadRaiseSel(); return; }
+    for (const x of $("#raiseBar").querySelectorAll("button[data-r]")) x.classList.toggle("on", x === b);
+    $("#raiseFrame").src = RAISE_SRC[b.dataset.r] || RAISE_SRC.qianfan;
+  });
+
+  // 过境预报：观测点输入 / 定位 / 地图选点 / 配置 / 计算
+  $("#pvApply").addEventListener("click", () => applyObserver(true));
+  $("#pvClear").addEventListener("click", clearObserver);
+  $("#pvGeo").addEventListener("click", obsGeo);
+  $("#pvPick").addEventListener("click", obsStartPick);
+  $("#pvGo").addEventListener("click", computePasses);
+  for (const id of ["#pvLat", "#pvLon"]) {
+    const el = $(id);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); applyObserver(true); } });
+    el.addEventListener("paste", obsPaste);
+  }
+  $("#pvMinEl").addEventListener("change", (e) => {
+    OBS.minEl = Number(e.target.value); OBS.passes = []; obsSave(); renderObsNow(); renderPassList();
+  });
+  $("#pvScope").addEventListener("change", (e) => {
+    OBS.scope = e.target.value; OBS.passes = []; obsSave(); renderObsNow(); renderPassList();
+  });
+  $("#pvHours").addEventListener("change", (e) => {
+    OBS.hours = Number(e.target.value); OBS.passes = []; obsSave(); renderPassList();
+  });
+  obsRestore();
+  $("#pvMinEl").value = String(OBS.minEl);
+  $("#pvScope").value = OBS.scope;
+  $("#pvHours").value = String(OBS.hours);
+  if (OBS.lat != null) applyObserver(false, true);
+  else { renderObsNow(); renderPassList(); }
+
+  // 播放 / 速度
+  const setPlay = (v) => {
+    S.playing = v;
+    $("#btnPlay").innerHTML = v ? "⏸ 暂停" : "▶ 播放";
+  };
+  $("#btnPlay").addEventListener("click", () => { setPlay(!S.playing); if (S.playing) $("#speed").value = String(S.speed || 60); });
+  $("#speed").addEventListener("change", (e) => {
+    const v = Number(e.target.value);
+    S.speed = v;
+    setPlay(v > 0);
+  });
+  $("#btnNow").addEventListener("click", () => { S.simTime = Date.now(); });
+  $("#timeSlider").addEventListener("input", (e) => { S.simTime = Date.now() + Number(e.target.value) * 60000; });
+
+  // 刷新
+  $("#btnRefresh").addEventListener("click", async () => { await loadAll(true); });
+
+  // 「程序已更新」提示条：整条可点，点击刷新页面加载新版
+  $("#updBar").addEventListener("click", () => location.reload());
+
+  // 组次资料面板里的「组次 ▸」按钮（面板每 2s 重建 innerHTML，用委托绑定）
+  $("#batchInfo").addEventListener("click", (e) => {
+    if (e.target.closest("#biOpenBatch") && S.batchFilter) showBatchPanel(S.batchFilter.group);
+  });
+
+  // 分组卡片
+  $("#gcards").addEventListener("click", async (e) => {
+    const card = e.target.closest(".gcard"); if (!card) return;
+    const g = card.dataset.g;
+    if (e.target.dataset.act === "toggle") {
+      S.enabled[g] = e.target.checked;
+      delete S.payload[g];
+      if (!S.enabled[g] && S.batchFilter && S.batchFilter.group === g) { S.batchFilter = null; renderBatchBar(); }
+      renderGroupCards();
+      if (S.enabled[g]) await loadAll(false); else { buildSats(); renderStatus(); }
+    } else if (e.target.dataset.act === "refresh") {
+      S.enabled[g] = true;
+      try { await loadTLE(g, true); } catch (err) { alert("刷新失败：" + err.message); }
+      buildSats(); renderGroupCards(); renderStatus();
+    } else if (e.target.dataset.act === "batch") {
+      showBatchPanel(g);
+    }
+  });
+
+  // 筛选
+  const applyFilters = () => {
+    S.altMin = Number($("#altMin").value) || 0;
+    S.altMax = Number($("#altMax").value) || 1e6;
+    propagateAll(new Date(S.simTime));
+    updateList(true);
+  };
+  $("#altMin").addEventListener("change", applyFilters);
+  $("#altMax").addEventListener("change", applyFilters);
+  $("#q").addEventListener("input", (e) => { S.q = e.target.value.trim(); propagateAll(new Date(S.simTime)); updateList(true); });
+  $("#presets").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    S.preset = b.dataset.p;
+    for (const c of $("#presets").children) c.classList.toggle("on", c === b);
+    // 「未正常升轨」按发射天数判定，不能只用高度区间表达
+    const p = { all: [0, 40000], raise: [0, 999], stuck: [0, 999], work: [1000, 2000], geo: [20000, 40000] }[S.preset];
+    $("#altMin").value = p[0]; $("#altMax").value = p[1];
+    applyFilters();
+  });
+
+  // 列表选中
+  $("#list").addEventListener("click", (e) => {
+    const it = e.target.closest(".item"); if (!it) return;
+    const s = S.idx[it.dataset.id];
+    if (s) select(s);
+  });
+
+  // 画布交互：拖拽旋转 / 滚轮缩放 / 点选 / 悬浮
+  const stage = $("#stage");
+  let drag = null;
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    // 组次面板内绝不能启动拖拽/指针捕获：setPointerCapture 会把后续 mouseup/click
+    // 全部重定向到 stage，面板行的 click 监听器就永远收不到事件（点击无反应 bug）
+    if (e.target.closest("#batchPanel")) return;
+    // 过境预报面板同理：它的输入框/下拉/按钮都在 stage 里，捕获走开就没法聚焦与选择文本
+    if (e.target.closest("#passView")) return;
+    drag = { x: e.clientX, y: e.clientY, moved: 0 };
+    stage.classList.add("dragging");
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    // 面板打开时鼠标在其上移动，不做星下点悬停探测（否则会弹出面板底下的卫星 tip）
+    if (e.target.closest && e.target.closest("#batchPanel")) { S.hover = null; $("#tip").style.display = "none"; return; }
+    if (e.target.closest && e.target.closest("#passView")) { S.hover = null; $("#tip").style.display = "none"; return; }
+    if (drag) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (S.view === "3d") {
+        S.cam.lon -= dx * 0.28; S.cam.lat = clamp(S.cam.lat + dy * 0.24, -89, 89);
+        if (S.followOn) { S.followOn = false; $("#btnFollow").textContent = "跟随选中：关"; }
+      }
+      return;
+    }
+    const s = pickAt(e.clientX, e.clientY);
+    S.hover = s;
+    const tip = $("#tip");
+    if (s) {
+      const r = stage.getBoundingClientRect();
+      tip.style.display = "block";
+      tip.style.left = (e.clientX - r.left + 14) + "px";
+      tip.style.top = (e.clientY - r.top + 12) + "px";
+      const m = s.meta || {};
+      const grp = m.group || m.mission || (S.groups[s.group] || {}).label || s.group;
+      // 状态徽标：与左侧列表同一套判据
+      let st = "";
+      if (s.alt != null) {
+        if (s.alt >= 20000) st = "同步轨道";
+        else if (s.alt >= 1000) st = "工作轨道";
+        else if (s.launchDays != null && s.launchDays > 365) st = "未正常升轨";
+        else st = "爬升中";
+      }
+      tip.innerHTML = "<b>" + esc(s.name) + "</b> · " + num(s.alt, 1) + " km" +
+        (s.incl != null ? " · " + num(s.incl, 1) + "°" : "") +
+        "　" + esc(grp) +
+        (m.rocket ? " · " + esc(m.rocket) : "") +
+        (st ? " · <span style='opacity:.75'>" + st + "</span>" : "");
+      stage.style.cursor = "pointer";
+    } else { tip.style.display = "none"; stage.style.cursor = ""; }
+  });
+  stage.addEventListener("pointerup", (e) => {
+    stage.classList.remove("dragging");
+    if (drag && drag.moved < 5) {
+      if (OBS.pick && S.view === "2d") obsPickAt(e.clientX, e.clientY);
+      else { const s = pickAt(e.clientX, e.clientY); if (s) select(s); }
+    }
+    drag = null;
+  });
+  stage.addEventListener("pointercancel", () => { drag = null; stage.classList.remove("dragging"); });
+  stage.addEventListener("pointerleave", () => { $("#tip").style.display = "none"; S.hover = null; });
+  stage.addEventListener("wheel", (e) => {
+    if (S.view === "3d") {
+      e.preventDefault();
+      S.cam.dist = clamp(S.cam.dist * (1 + Math.sign(e.deltaY) * 0.08), 1.14, 45);
+    }
+  }, { passive: false });
+
+  // 顶部按钮
+  $("#btnTrail").addEventListener("click", () => {
+    S.trailOn = !S.trailOn;
+    $("#btnTrail").textContent = "轨迹：" + (S.trailOn ? "开" : "关");
+    if (S.trailOn) seedTrails();   // 立即回推历史，开开关马上能看到线
+  });
+  $("#btnQuit").addEventListener("click", async () => {
+    if (!confirm("退出星座轨道实时查看器？\n（结束后台服务，卫星推算将停止）")) return;
+    // 必须是 POST：服务端只认 POST /quit，这样任意网页的 <img src="…/quit"> 关不掉程序
+    try { await fetch("/quit", { method: "POST" }); } catch (e) { }
+    document.body.innerHTML = "<div style='display:grid;place-items:center;height:100vh;font:15px/1.8 sans-serif;color:#888;background:#f7f9fc'>程序已退出，可以关闭此标签页了。<br>下次双击 exe 重新打开。</div>";
+  });
+  $("#btnCover").addEventListener("click", () => { S.coverOn = !S.coverOn; $("#btnCover").textContent = "覆盖圆：" + (S.coverOn ? "开" : "关"); });
+  $("#btnFollow").addEventListener("click", () => {
+    S.followOn = !S.followOn;
+    $("#btnFollow").textContent = "跟随选中：" + (S.followOn ? "开" : "关");
+    if (S.followOn && !S.selected) alert("请先选中一颗卫星。");
+  });
+  // 取消选中：清掉当前卫星（用户建议 2026-09-29；按钮文案 2026-10-06 由「退出查看」改为「取消选中」）；
+  // 若正看单星爬升图则回到总览
+  $("#btnDeselect").addEventListener("click", () => {
+    select(null);
+    if (S.view === "raise") {
+      S._raiseSelNorad = null;
+      if (!loadRaiseBatch() && $("#raiseFrame").src.indexOf("sat.html") >= 0) $("#raiseFrame").src = RAISE_SRC.qianfan;
+    }
+  });
+  $("#btnFit").addEventListener("click", () => {
+    if (S.view !== "3d") { alert("适配视野只在 3D 视图有效。"); return; }
+    let maxR = 1.2;
+    for (const s of S.visible) maxR = Math.max(maxR, len3(s.scene) || 1);
+    // 视场角 32°，留 15% 余量
+    S.cam.dist = clamp(maxR / Math.tan(16 * D2R) * 1.18, 1.35, 45);
+  });
+
+  window.addEventListener("resize", () => { fitCanvas(); });
+}
+
+function select(s) {
+  S.selected = s;
+  // 选中远距离目标（同步轨道）时自动把视野拉到能看见它
+  if (S.view === "3d" && s && s.ok) {
+    const r = len3(s.scene) || 1;
+    if (r > S.cam.dist * 0.75) S.cam.dist = clamp(r * 1.6, 1.35, 45);
+  }
+  renderDetail();
+  updateRaiseForSel();
+  updateList(true);
+}
+
+/* ================================================================= 启动 */
+async function boot() {
+  buildMapCanvas();
+  fitCanvas();
+  // URL 参数：#2d / #raise 直接进 2D / 轨道爬升视图；#trail 默认打开轨迹；#lat= &lon= 指定初始视角（可分享）
+  if (/2d/i.test(location.hash)) S.view = "2d";
+  if (/raise/i.test(location.hash)) S.view = "raise";
+  if (/pass/i.test(location.hash)) S.view = "pass";
+  try { initGL(); } catch (e) { console.warn("WebGL 初始化失败，退回 2D：", e); GL.ok = false; S.view = "2d"; }
+  if (!GL.ok) S.view = "2d";
+  // 默认视角对准向阳面偏东一点，保证一打开就能看清地球
+  try {
+    const su0 = sunECEF(new Date());
+    S.cam.lon = satellite.degreesLong(Math.atan2(su0[1], su0[0])) + 48;
+    S.cam.lat = 20;
+  } catch (e) { }
+  const mLat = location.hash.match(/lat=(-?\d+(?:\.\d+)?)/i);
+  const mLon = location.hash.match(/lon=(-?\d+(?:\.\d+)?)/i);
+  if (mLat) S.cam.lat = Math.max(-89.5, Math.min(89.5, parseFloat(mLat[1])));
+  if (mLon) S.cam.lon = parseFloat(mLon[1]);
+  bindUI();
+  // URL 参数：#obs=lat,lon 直接设定观测点（便于分享 / 自检）
+  const mObs = location.hash.match(/obs=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
+  if (mObs && Math.abs(+mObs[1]) <= 90 && Math.abs(+mObs[2]) <= 180) {
+    OBS.lat = +mObs[1]; OBS.lon = +mObs[2];
+    applyObserver(false, true);
+  }
+  if (S.setView) S.setView(S.view);
+  if (/trail/i.test(location.hash)) { S.trailOn = true; $("#btnTrail").textContent = "轨迹：开"; }
+  await loadGroups();
+  await loadAll(false);
+  updateVlabel();   // 初始无选中/无组次 → 隐藏轨迹/覆盖圆开关
+  // 数据就绪后再把模拟时间对齐到「现在」，避免加载耗时造成偏移
+  S.simTime = Date.now();
+  // URL 参数：#sel=60379 载入后直接选中该 NORAD 卫星（便于分享 / 定位）
+  const ms = location.hash.match(/sel=(\d+)/i);
+  if (ms) { const t = S.sats.find(x => String(x.norad) === ms[1]); if (t) select(t); }
+  // URL 参数：#batch=<group>[/COSPAR前段] 直开组次面板，或直接聚焦某个组次（便于分享）
+  const mb = location.hash.match(/batch=([a-z_]+?)(?:\/([^&]+))?\/?$/i);
+  if (mb && S.groups[mb[1].toLowerCase()]) {
+    const gB = mb[1].toLowerCase();
+    if (mb[2]) setBatchFocus(gB, decodeURIComponent(mb[2]));
+    else setTimeout(() => showBatchPanel(gB), 350);
+  }
+  requestAnimationFrame((t) => { lastFrame = t; loop(t); });
+  // 每 6 小时自动刷新一次
+  setInterval(() => { loadAll(true).catch(() => { }); }, 6 * 3600 * 1000);
+  watchBootId();
+}
+
+/* 页面 ↔ 程序版本一致性守护：浏览器里开着的旧标签页不会自己更新，
+   旧页面里新功能不存在、老 bug 还在（用户会误报"点了没反应"）。
+   每 10 秒问一次后端启动标识，发现程序重启过就在页顶弹「点击刷新」提示条。 */
+let _bootId = null;
+async function watchBootId() {
+  try {
+    const r = await fetch("/api/ping", { cache: "no-store" });
+    const j = await r.json();
+    if (!_bootId) _bootId = j.boot;           // 首次只记录，不弹
+    else if (j.boot && j.boot !== _bootId) $("#updBar").style.display = "block";
+  } catch (e) { /* 程序已关时静默 */ }
+  setTimeout(watchBootId, 10000);
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>
