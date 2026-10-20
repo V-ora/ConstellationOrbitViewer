@@ -230,7 +230,8 @@ def main():
         html = html.replace('"/web/', '"web/')
         meta = {"date": time.strftime("%Y-%m-%d"),
                 "counts": counts, "total": sum(counts.values())}
-        # 图标内联成 SVG data URI：不加文件，也不让浏览器去请求「域名根」的 /favicon.ico
+        # 图标：见 assets/logo.svg（这是源文件，可编辑）。这里内联成 data URI，
+        # 好处是不额外发一次请求，也不会在子路径部署时因相对路径踩坑。：不加文件，也不让浏览器去请求「域名根」的 /favicon.ico
         # （Pages 是子路径部署，根路径那个 404 会一直在控制台里报，看着像出错）
         fav = ("<link rel=\"icon\" href=\"data:image/svg+xml,"
                "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"

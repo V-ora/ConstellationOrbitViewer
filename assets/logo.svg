@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  星座轨道实时查看器 · 图标 / Constellation Orbit Viewer icon
+  ------------------------------------------------------------------
+  设计：蓝色圆角方块 + 白色轨道椭圆环 + 中心白点（"卫星在轨"的极简表达）
+  源出：web/ 页面的 favicon（由 build_pages.py 内联成 data URI），此文件是它的独立可编辑版本。
+  尺寸：viewBox 512×512，可无损缩放到任意大小；与 32×32 版比例完全一致（全部 ×16）。
+  用法：<link rel="icon" href="assets/logo.svg"> 或直接当图片引用。
+  授权：与项目一致，MIT。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="星座轨道实时查看器">
+  <title>星座轨道实时查看器</title>
+  <rect width="512" height="512" rx="112" ry="112" fill="#2f6fed"/>
+  <g transform="rotate(-30 256 256)">
+    <ellipse cx="256" cy="256" rx="176" ry="83.2" fill="none" stroke="#ffffff" stroke-width="32"/>
+  </g>
+  <circle cx="256" cy="256" r="67.2" fill="#ffffff"/>
+</svg>
