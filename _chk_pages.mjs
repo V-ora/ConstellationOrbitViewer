@@ -97,6 +97,14 @@ ok('刷新按钮已降级为「快照」提示', /快照/.test(st.rf), st.rf);
 ok('「退出程序」在静态站上已隐藏', st.quitVis === false);
 ok('卫星列表已渲染（> 20 行）', st.items > 20, st.items + ' 行');
 
+// 静态站会把顶栏副标题改写成「千帆 · 中国星网　数据快照 日期」——
+// 分组改名（2026-10-20 国网/星网 → 中国星网）以后，这里也要跟着对上
+const brand = await js(`(()=>{const s=document.querySelector('header .brand span'); return s?s.textContent.trim():'';})()`);
+ok('顶栏副标题用「中国星网」且标明快照', /中国星网/.test(brand) && /快照/.test(brand), brand);
+const cardTxt = await js(`(()=>{const g=document.getElementById('gcards'); return g?g.textContent.replace(/\\s+/g,' ').trim():'';})()`);
+ok('左侧分组卡片显示「中国星网」', /中国星网/.test(cardTxt) && !/国网 \/ 星网 GW 星座/.test(cardTxt),
+  cardTxt.slice(0, 60));
+
 // 点一下「快照」按钮：应弹提示、且数据不被改动
 const epochBefore = st.epoch;
 await js(`document.getElementById('btnRefresh').click()`);

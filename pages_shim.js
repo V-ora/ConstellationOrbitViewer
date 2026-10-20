@@ -166,7 +166,7 @@
   function decorate() {
     // 顶栏副标题直接把「快照 + 日期」写出来：桌面一眼可见，手机上这段本来就不显示、不占位
     var sub = document.querySelector("header .brand span");
-    if (sub) sub.textContent = "千帆 · 星网　数据快照 " + META.date;
+    if (sub) sub.textContent = "千帆 · 中国星网　数据快照 " + META.date;
 
     // 「退出程序」在静态站上没有意义（没有本地服务可退）
     var quit = document.getElementById("btnQuit");
