@@ -80,3 +80,6 @@ _verify_payload_*.txt
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 本机专用的一键上传助手（含本机绝对路径，别人 clone 也没用）
+上传到GitHub.bat
