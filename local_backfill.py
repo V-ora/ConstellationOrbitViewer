@@ -29,22 +29,31 @@ GP = "https://celestrak.org/NORAD/elements/gp.php?"
 
 
 def _extra_paths():
-    """运行实例真正会读的「补抓历史」文件路径（可能有两个）。
+    """运行实例真正会读的「补抓历史」文件路径（可能有好几个）。
 
     ★ 2026-10-03 修复：本脚本原来只写项目里的 data/sat_hist.json，而运行实例
       （尤其打包后的 exe）只读「包内快照 + cache/sat_hist_extra.json」——
       手动补的历史对正在跑的查看器**完全不可见**，除非重打包。
     源码态运行时 CACHE_DIR = <项目>\\cache；exe 运行时 =
       %LOCALAPPDATA%\\ConstellationOrbitViewer\\cache，所以两处都要写。
+
+    ★★ 2026-10-20 修复（SpaceTrack 版的逐日历史一直没长）：缓存目录**有两套** ——
+      默认版用 ``cache``，``COV_DATA_SRC=spacetrack`` 用 ``cache_st``
+      （见 server.py 的 `_CACHE_LEAF`）。本函数原来只写 ``cache``，
+      于是 ST 版的服务端去 ``cache_st`` 读 extras 永远读不到，补抓白跑。
+      现在两个 leaf 都写；不存在的目录不创建（避免给用不到的版本凭空造目录）。
     """
     out = []
+    roots = []
     la = os.environ.get("LOCALAPPDATA")
     if la:
-        out.append(os.path.join(la, "ConstellationOrbitViewer", "cache",
-                                "sat_hist_extra.json"))
-    d = os.path.join(HERE, "cache")
-    if os.path.isdir(d):
-        out.append(os.path.join(d, "sat_hist_extra.json"))
+        roots.append((os.path.join(la, "ConstellationOrbitViewer"), True))   # exe 侧
+    roots.append((HERE, False))                                            # 工程侧
+    for root, is_exe in roots:
+        for leaf in ("cache", "cache_st"):
+            d = os.path.join(root, leaf)
+            if is_exe or os.path.isdir(d):
+                out.append(os.path.join(d, "sat_hist_extra.json"))
     return out
 
 

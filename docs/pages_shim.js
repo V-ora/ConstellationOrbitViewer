@@ -121,6 +121,15 @@
         if (r.path === "net") {
           return Promise.resolve(jsonRes({ bind: "", port: 0, lan_enabled: false, lan: [], static: true }));
         }
+        if (r.path === "status") {
+          // 静态站没有后端脚本，也就没有「大图自动更新」这回事 —— 这件事已由下面的
+          // 「静态演示版」说明讲清楚，这里回 ok:true，避免同一条信息报两遍。
+          return Promise.resolve(jsonRes({
+            boot: "static-" + META.date, server_time: META.date,
+            network: { mode: "snapshot" }, static: true,
+            deliv: { ok: true, why: "", script: "" }
+          }));
+        }
         if (r.path === "sat_hist") {
           return loadHist().then(function (h) {
             var n = r.q.norad || "";

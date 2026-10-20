@@ -110,8 +110,8 @@ GROUPS = {
         "backfill": True,   # NAME 检索漏掉的已编目星，用 CATNR 逐颗补抓
     },
     "gw": {
-        "label": "国网 / 星网 GW 星座",
-        "sub": "HULIANWANG DIGUI · 中国星网",
+        "label": "中国星网",
+        "sub": "HULIANWANG DIGUI · GW",
         "name": "hulianwang digui",
         "color": "#3b9dff",
         "ttl": 2 * 3600,
@@ -1990,8 +1990,35 @@ _DELIV_TTL = 12 * 3600     # 大图重生成间隔（启动时另有一次即时
                            # 曲线数据每天才长一个点，12 小时足够新。
 
 
+# 「两张爬升大图能不能自动更新」的现状。★ 2026-10-20：以前脚本缺失是**静默跳过**，
+# 用户以为在自动更新、其实一直没动（exe 只打了 web/ 与 data/，refresh_deliverables.py
+# 根本不在包里）。现在探测一次、写进 /api/status，界面上照实说。
+DELIV_STATE = {"ok": False, "why": "尚未探测", "script": ""}
+
+
+def deliv_probe():
+    """这台机器上「大图自动更新」到底能不能跑。返回 (state, 一次性日志文案)。"""
+    global DELIV_STATE
+    cfg = read_json(DELIV_CONFIG) or {}
+    script = (cfg.get("script") or "").strip()
+    if not cfg.get("enabled", True):
+        DELIV_STATE = {"ok": False, "script": script,
+                       "why": "已被手动关闭（删掉 cache\\deliverables_refresh.json 即恢复）"}
+    elif not script:
+        DELIV_STATE = {"ok": False, "script": "",
+                       "why": "尚未配置脚本：跑一次 refresh_deliverables.py 会写入配置"}
+    elif not os.path.exists(script):
+        DELIV_STATE = {"ok": False, "script": script,
+                       "why": "找不到 refresh_deliverables.py（独立 exe 未附带脚本），大图不会自动更新"}
+    else:
+        DELIV_STATE = {"ok": True, "script": script, "why": ""}
+    return DELIV_STATE
+
+
 def _deliv_run_once(force=False):
-    """到点就跑一次 refresh_deliverables.py。未配置/脚本不存在 → 静默跳过。"""
+    """到点就跑一次 refresh_deliverables.py。未配置/脚本不存在 → 跳过（原因记进 DELIV_STATE）。"""
+    if not deliv_probe()["ok"]:
+        return 0
     cfg = read_json(DELIV_CONFIG) or {}
     if not cfg.get("enabled", True):
         return 0
@@ -2034,8 +2061,11 @@ def maybe_start_deliverables_refresh(delay=60.0):
                 log("交付物更新线程异常（不影响主体数据）：%s" % e)
             time.sleep(600)
     threading.Thread(target=_loop, daemon=True, name="deliv-refresh").start()
-    if read_json(DELIV_CONFIG):
-        log("交付物自动更新已启动（启动后一次，之后每 12 小时一次，可删 %s 关闭）" % DELIV_CONFIG)
+    _ds = deliv_probe()
+    if _ds["ok"]:
+        log("爬升大图自动更新：已启用（启动后一次，之后每 12 小时一次；脚本 %s）" % _ds["script"])
+    else:
+        log("！！爬升大图自动更新不可用：%s" % _ds["why"])
 
 
 # ---------------------------------------------------------------- 缺星补抓
@@ -2576,6 +2606,7 @@ class Handler(BaseHTTPRequestHandler):
                     "boot": BOOT_ID,
                     "server_time": iso_local(now_local()),
                     "network": net,
+                    "deliv": DELIV_STATE,
                     "cache": {
                         k: (read_json(cache_paths(k)[1]) or {}) for k in GROUPS
                     },

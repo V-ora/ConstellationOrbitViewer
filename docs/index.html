@@ -800,7 +800,7 @@ function sunECEF(date) {
 /* ================================================================= 数据 */
 async function loadGroups() {
   try { S.groups = await api("/api/groups"); }
-  catch (e) { S.groups = { qianfan: { label: "千帆星座", sub: "QIANFAN", color: "#e8890c" }, gw: { label: "国网 / 星网 GW", sub: "HULIANWANG", color: "#2f7de1" } }; }
+  catch (e) { S.groups = { qianfan: { label: "千帆星座", sub: "QIANFAN", color: "#e8890c" }, gw: { label: "中国星网", sub: "HULIANWANG", color: "#2f7de1" } }; }
   const def = { qianfan: true, gw: true, gaogui: true };
   for (const k of Object.keys(S.groups)) S.enabled[k] = (k in S.enabled) ? S.enabled[k] : (def[k] !== false);
   renderGroupCards();
@@ -1693,6 +1693,19 @@ function renderGroupCards() {
   }
 }
 
+// 「两张爬升大图能不能自动更新」由后端探测后放在 /api/status.deliv 里。
+// 以前脚本缺失是静默跳过 —— 用户以为在更新、其实一直没动，这里如实报出来。
+let _deliv = null, _delivLoading = false;
+function loadDelivState() {
+  if (_delivLoading || _deliv) return;
+  _delivLoading = true;
+  fetch("/api/status", { cache: "no-store" })
+    .then(r => r.json())
+    .then(j => { _deliv = (j && j.deliv) || { ok: true }; })
+    .catch(() => { _deliv = { ok: true }; })       // 拿不到就别吓唬人
+    .then(() => { _delivLoading = false; renderStatus(); });
+}
+
 function renderStatus() {
   const rows = [];
   for (const g of Object.keys(S.payload)) {
@@ -1705,7 +1718,12 @@ function renderStatus() {
   }
   const ages = Object.keys(S.payload).map(g => S.payload[g].epoch_age_days).filter(v => v != null);
   rows.push("<div style='margin-top:6px'>TLE 历元最新数据龄约 <b>" + (ages.length ? Math.min.apply(null, ages).toFixed(2) : "—") + " 天</b>；后端每 2 小时缓存刷新一次。</div>");
+  if (_deliv && _deliv.ok === false) {
+    rows.push("<div style='margin-top:6px;color:var(--warn)'>爬升大图自动更新：<b>不可用</b><br>" +
+      esc(_deliv.why || "") + "</div>");
+  }
   $("#status").innerHTML = rows.join("");
+  loadDelivState();          // 首次调用时异步取一次，回来后自己重画
 }
 
 function updateList(rebuild) {
