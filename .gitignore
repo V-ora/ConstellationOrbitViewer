@@ -52,9 +52,7 @@ cache/*
 *.log
 *.log.*
 _tmp/
-_shots/
-_shots_pages/
-_shots_live/
+_shots*/
 # 静态站的子路径测试目录（把 docs/ 拷成 <某名字>/ 再起静态服务，用来验绝对路径）
 _pages_test/
 _cis.html
