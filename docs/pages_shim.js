@@ -177,7 +177,7 @@
     var rf = document.getElementById("btnRefresh");
     if (rf) {
       rf.textContent = "⏸ 数据快照";
-      rf.title = "这是发布时冻结的数据快照，不能在线刷新";
+      rf.title = "静态站数据由 GitHub Actions 每 12 小时自动更新；本页不能手动刷新，刷新浏览器可拿到最新快照";
     }
     document.addEventListener("click", function (e) {
       var t = e.target;
@@ -185,7 +185,7 @@
       if (t.closest("#btnRefresh")) {
         e.preventDefault();
         e.stopPropagation();
-        toast("静态演示版：数据截至 " + META.date + "，不能在线刷新。需要实时请在本机运行查看器。");
+        toast("静态演示版：数据截至 " + META.date + "，由 GitHub Actions 每 12 小时自动更新；本页不能手动刷新，刷新浏览器即可拿到最新一份。");
       }
     }, true);
 
@@ -198,7 +198,9 @@
       d.innerHTML = "<b>静态演示版</b>　" + META.date + " 的快照，共 " + META.total
         + " 颗（千帆 " + (META.counts.qianfan || 0) + " / 星网低轨 " + (META.counts.gw || 0)
         + " / 高轨 " + (META.counts.gaogui || 0) + "）。<br>"
-        + "位置仍会按当时根数实时推算、地球会转；但拿不到更新的根数。";
+        + "位置仍会按当时根数实时推算、地球会转。<br>"
+        + "站点数据由 GitHub Actions 每 12 小时（UTC 00/12 ≈ 北京 08:00 / 20:00）"
+        + "自动重烘并重新发布；本页不能手动刷新，刷新浏览器即可拿到最新一份。";
       st.parentNode.appendChild(d);
     }
   }
