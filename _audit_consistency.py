@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """跨位置一致性核查：项目 cache/ ↔ %LOCALAPPDATA% cache/ ↔ data/ 静态表。
 只读，不改任何文件。"""
-import io, json, os, sys, collections
+import io, json, os, re, sys, collections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -166,13 +166,21 @@ for name, subdir in EXES:
         len(exist) == 2 and len(set(md5s)) == 1,
         "%s  %d B" % (md5s[0][:12] if md5s else "-", size))
 
-# 成品件齐套（并入后本目录应有：说明 / README / 4 份报告 / 预览 15 张 / 制作记录树）
+# 成品件齐套（并入后本目录应有：说明 / README / 4 份报告 / 预览图 / 制作记录树）
 for rel in ("说明.md", "README.md",
             "数据与代码自检报告_20261006.md", "数据与代码自检报告_20261007.md",
             "漏洞与安全自检报告_20261006.md", "自更新能力自检_20261003.md"):
     chk("E-成品 %s 存在" % rel, os.path.isfile(os.path.join(HERE, rel)))
-NPV = len([f for f in os.listdir(HERE) if f.startswith("预览_") and f.endswith(".png")])
-chk("E-成品 预览图 15 张", NPV == 15, "%d 张" % NPV)
+# ★ 2026-10-21：原来写死 `NPV == 15`，功能一多就假红（实测已 20 张）。
+#   改成关系断言：README 引用的每一张预览图都必须真的存在，且总数不少于 15。
+#   （同《关键经验与踩坑清单》§附 6：「会随功能自然变大的数字别写进断言」。）
+NPV = sorted(f for f in os.listdir(HERE) if f.startswith("预览_") and f.endswith(".png"))
+_ref = re.findall(r"预览_[^\"'()<>\s]+\.png",
+                  open(os.path.join(HERE, "README.md"), encoding="utf-8").read())
+_missing = sorted(set(_ref) - set(NPV))
+chk("E-成品 预览图与 README 引用一致（>=15 张）",
+    len(NPV) >= 15 and not _missing,
+    "%d 张 / README 引用 %d 张 / 缺 %s" % (len(NPV), len(set(_ref)), _missing or "无"))
 chk("E-成品 制作记录\\README.md 存在",
     os.path.isfile(os.path.join(HERE, "制作记录", "README.md")))
 
