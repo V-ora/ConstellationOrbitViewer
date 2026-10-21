@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
 DST = os.path.join(HERE, "web_nopass")
 ORIG = os.path.join(HERE, "_features", "index_original.html")
-ORIG_MD5 = "ce36288fc05c0224a343bc34df803aaa"
+ORIG_MD5 = "3ccd61487baa0d052877fa822c2d03f9"
 
 
 def md5(path):

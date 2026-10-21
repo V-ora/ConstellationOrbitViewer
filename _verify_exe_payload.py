@@ -28,6 +28,16 @@ def md5b(b):
     return hashlib.md5(b).hexdigest()
 
 
+def norm(b):
+    """文本资源比较前把 CRLF 归一成 LF。
+
+    仓库里 .gitattributes 写的是 `* text=auto eol=lf`，但 disk 上的文件可能是
+    CRLF（比如更早生成的 web_nopass/）—— 内容一样、字节不同。这里统一口径，
+    避免把「换行符风格」误报成「内容不一致」。
+    """
+    return b.replace(b"\r\n", b"\n") if isinstance(b, (bytes, bytearray)) else b
+
+
 def member(cr, name):
     """归档里的名字用反斜杠（web\\index.html）。"""
     key = name.replace("/", "\\")
@@ -78,7 +88,7 @@ for exe_name, want_pass, ref in CASES:
     txt = html.decode("utf-8", "replace")
     has = "passView" in txt
     ref_b = open(ref, "rb").read()
-    same = html == ref_b
+    same = norm(html) == norm(ref_b)
     print("  内嵌页面 %d B  md5=%s  含 passView=%s" % (len(html), md5b(html)[:16], has))
     print("  与磁盘 %s 一致=%s" % (os.path.basename(ref), same))
     if has == want_pass:
@@ -101,7 +111,7 @@ for exe_name, want_pass, ref in CASES:
     for _f in ("mobile.css", "mobile.js"):
         _in = cr.extract("web\\" + _f)
         _disk = open(os.path.join(HERE, "web", _f), "rb").read()
-        if _in is not None and _in == _disk:
+        if _in is not None and norm(_in) == norm(_disk):
             print("  内嵌 %-11s %d B  与磁盘一致=True" % (_f, len(_in)))
             ok += 1
         else:
@@ -156,7 +166,7 @@ for exe_name, want_pass, ref in CASES:
     for big in BIG_HTMLS:
         data = cr.extract(("web/raise/" + big).replace("/", "\\"))
         ref = open(os.path.join(HERE, "web", "raise", big), "rb").read()
-        same_big = bool(data) and md5b(data) == md5b(ref)
+        same_big = bool(data) and norm(data) == norm(ref)
         if has_live:
             print("  内嵌大图 %-28s %s B  存在=%s  与磁盘同版=%s（有覆盖层，包内版本允许旧）"
                   % (big, len(data) if data else 0, bool(data), same_big))
