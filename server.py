@@ -91,8 +91,12 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 ConstellationOrbitViewer/1.0")
 
 # 网络出口探针 URL：按数据源走各自的站（resolve_network 只判通不通，不校验内容）
+# ★ 2026-10-21 修正：原来拿 gp.php?NAME=qianfan&FORMAT=tle 当探针 —— 那是**要检索的重查询**，
+#   实测 11~21 秒（GROUP=starlink 更夸张，21.5 秒），而探测超时只有 6 秒 ⇒ 必然超时，
+#   程序于是误判「直连与代理均不可用」，红条挂 5 分钟、只给旧缓存（现象：数据龄 1.58 天）。
+#   探针只判「通不通」，用站根就够：实测 1~2 秒、9 KB。
 _NET_PROBE_URL = ("https://www.space-track.org/" if DATA_SRC == "spacetrack"
-                  else "https://celestrak.org/NORAD/elements/gp.php?NAME=qianfan&FORMAT=tle")
+                  else "https://celestrak.org/")
 
 TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?NAME={name}&FORMAT=tle"
 OMM_URL = "https://celestrak.org/NORAD/elements/gp.php?NAME={name}&FORMAT=json"
@@ -198,7 +202,8 @@ PROXY_HOSTS = ["127.0.0.1"]
 
 _proxy_lock = threading.Lock()
 _proxy_state = {"proxy": None, "mode": "unknown", "checked_at": None}
-_NET_PROBE_COOLDOWN = 300   # 「无可用出口」状态的重探冷却（秒），期间秒回缓存
+_NET_PROBE_COOLDOWN = 90    # 「无可用出口」状态的重探冷却（秒），期间秒回缓存。
+                            # ★ 2026-10-21：原 300 秒 —— 一次网络抖动就要红五分钟，太长。
 
 
 # ---------------------------------------------------------------- 工具函数
@@ -806,7 +811,10 @@ def resolve_network(force=False):
             seen.add(key)
             try:
                 # 探针 URL 按数据源走各自的站（只判「通不通」，不校验内容）
-                http_get(_NET_PROBE_URL, proxy=proxy, timeout=6, retries=1)
+                # 直连是快路径，多给点耐心（最多 2 次 × 12 秒）；本地代理不通时很快自己失败
+                http_get(_NET_PROBE_URL, proxy=proxy,
+                         timeout=(12 if proxy is None else 5),
+                         retries=(2 if proxy is None else 1))
                 _proxy_state = {"proxy": proxy, "mode": mode, "checked_at": iso_local(now_local())}
                 write_json(os.path.join(CACHE_DIR, "proxy.json"),
                            {"proxy": proxy, "mode": mode, "checked_at": _proxy_state["checked_at"]})
@@ -2288,6 +2296,11 @@ def load_tle(group_key, force=False):
     except Exception:
         pass
 
+    if force:
+        # 用户点「刷新 TLE」= 明确要求重试：绕过「无出口」的冷却期重新探一次出口。
+        # （原来处处调 resolve_network() 不传 force，冷却期内点刷新完全空转，只能干等 5 分钟）
+        resolve_network(force=True)
+
     fresh = bool(cached_text and meta.get("fetched_ts") and
                  time.time() - meta["fetched_ts"] < g["ttl"])
     if fresh and not force:
@@ -2333,7 +2346,8 @@ def load_tle(group_key, force=False):
             sats = parse_tle(cached_text) if cached_text else []
             log("刷新 %s：无可用网络出口，继续用本地缓存（%d 颗）" % (group_key, len(sats)))
             return build_payload(group_key, sats, meta, stale=True,
-                                 error="无法访问 %s（当前显示本地缓存）" % SRC_LABEL,
+                                 error="无法访问 %s（当前显示本地缓存）%s"
+                                       % (SRC_LABEL, ("：" + str(net.get("error"))) if net.get("error") else ""),
                                  from_cache=True,
                                  meta_map=fetch_group_meta(group_key, allow_network=False))
 
