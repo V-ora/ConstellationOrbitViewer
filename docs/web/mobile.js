@@ -120,7 +120,7 @@
       var p = Array.from(live.values());
       var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
       var dist0 = (S_ && S_.cam && S_.cam.dist) || 3;
-      pinch = { d0: d, dist0: dist0 };
+      pinch = { d0: d, dist0: dist0, lastD: 0 };
       fireCancelSoon();                   // 让主脚本停止旋转（见上面的说明）
     }
   });
@@ -134,6 +134,16 @@
     var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
     // d0 / d 太小的时候比值会疯掉（两指几乎重合），加个下限
     if (pinch.d0 < 24 || d < 24) return;
+    // 2D：捏合 = 缩放地图（2026-10-25）；3D：捏合 = 拉近拉远
+    if (S_.view === "2d" && S_.zoom2D) {
+      var cv2 = document.getElementById("cv2d"), r2 = cv2.getBoundingClientRect();
+      var k2 = r2.width ? cv2.width / r2.width : 1;
+      var mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+      var f = pinch.lastD ? d / pinch.lastD : 1;
+      pinch.lastD = d;
+      S_.zoom2D(f, (mid.x - r2.left) * k2, (mid.y - r2.top) * k2);
+      return;
+    }
     S_.cam.dist = clamp(pinch.dist0 * pinch.d0 / d, 1.14, 45);
   });
 

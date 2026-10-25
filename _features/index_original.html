@@ -41,6 +41,10 @@ header .brand .logo{
 header .brand b{font-size:14.5px;letter-spacing:.2px}
 header .brand span{display:block;color:var(--muted);font-size:11px;margin-top:-1px}
 .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
+  /* 键盘可达性（2026-10-25）：焦点必须看得见 */
+  button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{
+    outline:2px solid #2f6fed;outline-offset:2px}
+  #viewSeg button:focus-visible{outline-offset:-2px;border-radius:7px}
 .seg button{
   border:0;background:transparent;padding:5px 13px;border-radius:7px;color:var(--muted);
   font-weight:600;transition:.15s
@@ -221,10 +225,10 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
       <div class="logo">◎</div>
       <div><b>星座轨道实时查看器</b><span>千帆 QIANFAN · 中国星网 GW</span></div>
     </div>
-    <div class="seg" id="viewSeg">
-      <button data-v="3d" class="on">3D 地球</button>
-      <button data-v="2d">2D 地面轨迹</button>
-      <button data-v="raise">轨道爬升图</button>
+    <div class="seg" id="viewSeg" role="tablist" aria-label="视图切换">
+      <button role="tab" data-v="3d" class="on" aria-selected="true" aria-controls="stage" tabindex="0">3D 地球</button>
+      <button role="tab" data-v="2d" aria-selected="false" aria-controls="stage" tabindex="-1">2D 地面轨迹</button>
+      <button role="tab" data-v="raise" aria-selected="false" aria-controls="stage" tabindex="-1">轨道爬升图</button>
     </div>
     <div class="grow"></div>
     <div class="clock">
@@ -275,7 +279,7 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
     </div>
   </aside>
 
-  <main id="stage">
+  <main id="stage" role="tabpanel" aria-label="轨道视图">
     <canvas id="cv3d"></canvas>
     <canvas id="cv2d"></canvas>
     <iframe id="raiseFrame" title="轨道爬升图" style="position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#fff"></iframe>
@@ -371,6 +375,7 @@ const S = {
   playing: true,
   speed: 1,
   view: "3d",
+  v2: { z: 1, x: 0, y: 0 },   // 2D 缩放/平移（设备像素）
   trailOn: false,
   coverOn: false,
   followOn: false,
@@ -1046,6 +1051,7 @@ function fitCanvas() {
     const c = $(id);
     if (c && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
   }
+  if (typeof clampV2 === "function") clampV2();   // 尺寸变了要重新夹一次平移量
   return dpr;
 }
 
@@ -1269,12 +1275,62 @@ function mapLayout(w, h) {
   const mh = Math.min(h, w / 2), mw = mh * 2;
   return { ox: (w - mw) / 2, oy: (h - mh) / 2, mw, mh };
 }
+
+/* ★ 2026-10-25：2D 支持缩放/平移（手机竖屏原来是一条挤扁的横向长条）。
+   底图区域不变，另算「内容矩形」；绘制与命中测试都走它，投影口径不变。 */
+function layout2D(w, h) {
+  const base = mapLayout(w, h);
+  const v = S.v2 || { z: 1, x: 0, y: 0 };
+  const mw = base.mw * v.z, mh = base.mh * v.z;
+  const cx = base.ox + base.mw / 2, cy = base.oy + base.mh / 2;
+  return { ox: cx - mw / 2 + v.x, oy: cy - mh / 2 + v.y, mw, mh, base, z: v.z };
+}
+
+function clampV2() {
+  const cv = $("#cv2d");
+  if (!cv || !S.v2) return;
+  const base = mapLayout(cv.width, cv.height);
+  const v = S.v2;
+  v.z = clamp(v.z, 1, 10);
+  if (v.z <= 1.0001) { v.z = 1; v.x = 0; v.y = 0; return; }
+  // 放大后地图可能比画布还大 —— 这时允许平移；比画布小时强制居中，避免露出白边
+  const mx = Math.max(0, (base.mw * v.z - cv.width) / 2);
+  const my = Math.max(0, (base.mh * v.z - cv.height) / 2);
+  v.x = clamp(v.x, -mx, mx);
+  v.y = clamp(v.y, -my, my);
+}
+
+function zoom2D(factor, px, py) {
+  const cv = $("#cv2d");
+  if (!cv || !isFinite(factor) || factor <= 0) return;
+  const base = mapLayout(cv.width, cv.height);
+  const L = layout2D(cv.width, cv.height);
+  const z = clamp(L.z * factor, 1, 10);
+  if (Math.abs(z - L.z) < 1e-6) return;
+  const u = L.mw ? (px - L.ox) / L.mw : 0.5, v = L.mh ? (py - L.oy) / L.mh : 0.5;
+  const mw = base.mw * z, mh = base.mh * z;
+  const cx = base.ox + base.mw / 2, cy = base.oy + base.mh / 2;
+  S.v2.z = z;
+  S.v2.x = px - cx + mw * (0.5 - u);
+  S.v2.y = py - cy + mh * (0.5 - v);
+  clampV2();
+}
+
+function pan2D(dx, dy) {
+  if (!S.v2 || S.v2.z <= 1.0001) return;
+  S.v2.x += dx; S.v2.y += dy;
+  clampV2();
+}
+
+function reset2D() {
+  S.v2 = { z: 1, x: 0, y: 0 };
+}
 let CTX2D = null;
 function render2D(dpr) {
   const cv = $("#cv2d"), w = cv.width, h = cv.height;
   if (!CTX2D || CTX2D.canvas !== cv) CTX2D = cv.getContext("2d");
   const g = CTX2D;
-  const L = mapLayout(w, h);
+  const L = layout2D(w, h);   // 缩放/平移后的生效矩形（底图仍是 L.base）
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = "#eef2f7"; g.fillRect(0, 0, w, h);
   g.drawImage(MAP_CV, L.ox, L.oy, L.mw, L.mh);
@@ -1743,7 +1799,7 @@ function pickAt(cx, cy) {
   let best = null, bestD = 196;   // 14 CSS px 半径平方
   if (S.view === "2d") {
     if (!r.width) return null;
-    const L = mapLayout(cv.width, cv.height);
+    const L = layout2D(cv.width, cv.height);   // 命中测试同样走缩放后的矩形
     const fx = r.width / cv.width, fy = r.height / cv.height;
     const tol = 10;   // 2D 视图：命中半径放宽到 10 CSS px
     bestD = tol * tol;
@@ -1783,7 +1839,15 @@ function bindUI() {
   // 视图切换
   const setView = (v) => {
     S.view = v;
-    for (const x of $("#viewSeg").children) x.classList.toggle("on", x.dataset.v === v);
+    // aria-selected / 漫游 tabindex 跟着一起切（无障碍：读屏要能知道当前是哪个视图）
+    for (const x of $("#viewSeg").children) {
+      const on = x.dataset.v === v;
+      x.classList.toggle("on", on);
+      if (x.hasAttribute("role")) {
+        x.setAttribute("aria-selected", on ? "true" : "false");
+        x.tabIndex = on ? 0 : -1;
+      }
+    }
     $("#stage").classList.toggle("v2d", v === "2d");
     $("#stage").classList.toggle("vraise", v === "raise");
     $("#raiseFrame").style.display = (v === "raise") ? "block" : "none";
@@ -1801,9 +1865,26 @@ function bindUI() {
     if (v === "2d") CTX2D = null;
   };
   S.setView = setView;
+  // 给 mobile.js 的双指捏合用
+  S.zoom2D = zoom2D; S.pan2D = pan2D; S.reset2D = reset2D;
   $("#viewSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     setView(b.dataset.v);
+  });
+  // 方向键在页签之间移动并直接切换（WAI-ARIA tabs 的 automatic activation）
+  $("#viewSeg").addEventListener("keydown", (e) => {
+    const tabs = Array.from($("#viewSeg").querySelectorAll("button[data-v]"));
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    let n = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") n = (i + 1) % tabs.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") n = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") n = 0;
+    else if (e.key === "End") n = tabs.length - 1;
+    if (n === null) return;
+    e.preventDefault();
+    tabs[n].focus();
+    setView(tabs[n].dataset.v);
   });
   $("#raiseBar").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-r]"); if (!b) return;
@@ -1905,6 +1986,11 @@ function bindUI() {
       if (S.view === "3d") {
         S.cam.lon -= dx * 0.28; S.cam.lat = clamp(S.cam.lat + dy * 0.24, -89, 89);
         if (S.followOn) { S.followOn = false; $("#btnFollow").textContent = "跟随选中：关"; }
+      } else if (S.view === "2d" && S.v2 && S.v2.z > 1) {
+        // 2D 放大后按住拖动 = 平移地图（未放大时不响应，避免误触）
+        const cv = $("#cv2d"), r = cv.getBoundingClientRect();
+        const k = r.width ? cv.width / r.width : 1;
+        pan2D(dx * k, dy * k);
       }
       return;
     }
@@ -1945,8 +2031,20 @@ function bindUI() {
     if (S.view === "3d") {
       e.preventDefault();
       S.cam.dist = clamp(S.cam.dist * (1 + Math.sign(e.deltaY) * 0.08), 1.14, 45);
+    } else if (S.view === "2d") {
+      e.preventDefault();
+      const cv = $("#cv2d"), r = cv.getBoundingClientRect();
+      if (!r.width) return;
+      const k = cv.width / r.width;
+      // 按 deltaY 幅度缩放（触控板一次手势会发几十个小 deltaY，用 sign() 会瞬间放到最大）
+      const step = Math.max(-180, Math.min(180, e.deltaY));
+      zoom2D(Math.pow(1.0018, -step), (e.clientX - r.left) * k, (e.clientY - r.top) * k);
     }
   }, { passive: false });
+  // 双击复位；未放大时什么都不做，免得跟「点选卫星」抢手势
+  stage.addEventListener("dblclick", (e) => {
+    if (S.view === "2d" && S.v2 && S.v2.z > 1) { e.preventDefault(); reset2D(); }
+  });
 
   // 顶部按钮
   $("#btnTrail").addEventListener("click", () => {

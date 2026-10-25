@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>星座轨道实时查看器 · 千帆 / 国网星网</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>星座轨道实时查看器 · 千帆 / 中国星网</title>
 <style>
 :root{
   --bg:#eef2f7; --panel:#ffffff; --panel2:#f7f9fc; --line:#dfe6ef; --line2:#eaeff5;
@@ -40,7 +40,11 @@ header .brand .logo{
 }
 header .brand b{font-size:14.5px;letter-spacing:.2px}
 header .brand span{display:block;color:var(--muted);font-size:11px;margin-top:-1px}
-.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px}
+  /* 键盘可达性（2026-10-25）：焦点必须看得见，否则 Tab 键走一遍等于摸黑 */
+  button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{
+    outline:2px solid #2f6fed;outline-offset:2px}
+  #viewSeg button:focus-visible{outline-offset:-2px;border-radius:7px}
 .seg button{
   border:0;background:transparent;padding:5px 13px;border-radius:7px;color:var(--muted);
   font-weight:600;transition:.15s
@@ -59,6 +63,7 @@ header .grow{flex:1}
 .btn.pri:hover{background:#2a63d6}
 .btn.sm{padding:4px 9px;font-size:12px;border-radius:7px}
 .btn:disabled{opacity:.5;cursor:default}
+#vlabel select{padding:4px 6px;font-size:12px;border-radius:7px;background:var(--panel);color:var(--text)}
 
 aside{background:var(--panel);min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #left{border-right:1px solid var(--line);width:300px}
@@ -202,18 +207,21 @@ main.vpass #vlabel,main.vpass #hud,main.vpass #tip{display:none}
 #passView .pv-bar{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden;margin:8px 0 0;display:none}
 #passView .pv-bar.on{display:block}
 #passView .pv-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s linear}
-#passView .pv-body{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:13px}
-@media (max-width:920px){#passView .pv-body{grid-template-columns:1fr}}
-#passView .pv-col{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;min-height:110px}
+/* 列宽自适应容器（左/右栏常占走 620px，中间只有 ~660px）：340px 以下自动并成一列，
+   不依赖媒体查询，避免窄窗口下两列被挤到横向溢出 */
+#passView .pv-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:13px}
+#passView .pv-col{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;min-height:110px;min-width:0}
 #passView .pv-col h3{margin:0 0 9px;font-size:13.5px;display:flex;align-items:center;gap:8px}
-#passView .pv-col h3 .r{margin-left:auto;color:var(--muted);font-size:11px;font-weight:400}
-#passView .pv-list{display:flex;flex-direction:column;gap:6px;max-height:54vh;overflow:auto}
-#passView .pv-row{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:12.5px}
+#passView .pv-col h3 .r{margin-left:auto;color:var(--muted);font-size:11px;font-weight:400;white-space:nowrap}
+#passView .pv-list{display:flex;flex-direction:column;gap:6px;max-height:54vh;overflow-y:auto;overflow-x:hidden}
+#passView .pv-row{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:12.5px;min-width:0;overflow:hidden}
 #passView .pv-row.now{border-color:#f0b429;background:#fffaef}
-#passView .pv-row .nm{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#passView .pv-row .mt{color:var(--muted);font-size:11px}
-#passView .pv-row .rt{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#passView .pv-row .nm{flex:1 1 auto;min-width:0;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#passView .pv-row .mt{flex:0 1 auto;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#passView .pv-row .rt{flex:none;margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 #passView .pv-row .rt b{font-size:13px}
+#passView .pv-row[data-norad]{cursor:pointer}
+#passView .pv-row[data-norad]:hover{border-color:var(--accent)}
 #passView .pv-empty{color:var(--muted);font-size:12px;padding:6px 2px;line-height:1.6}
 #passView .pv-foot{margin:13px 2px 0;color:var(--muted);font-size:11.5px;line-height:1.75}
 /* 3D 视图里的观测点标记（DOM 覆盖层，避免改动 WebGL 点缓冲） */
@@ -252,19 +260,21 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
 .legend{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}
 .legend .li{display:flex;align-items:center;gap:7px}
 </style>
+<!-- 窄屏 / 触屏适配单独放一个文件：见 web/mobile.css 顶部说明 -->
+<link rel="stylesheet" href="/web/mobile.css">
 </head>
 <body>
 <div id="app">
   <header>
     <div class="brand">
       <div class="logo">◎</div>
-      <div><b>星座轨道实时查看器</b><span>千帆 QIANFAN · 国网星网 GW</span></div>
+      <div><b>星座轨道实时查看器</b><span>千帆 QIANFAN · 中国星网 GW</span></div>
     </div>
-    <div class="seg" id="viewSeg">
-      <button data-v="3d" class="on">3D 地球</button>
-      <button data-v="2d">2D 地面轨迹</button>
-      <button data-v="raise">轨道爬升图</button>
-      <button data-v="pass">过境预报</button>
+    <div class="seg" id="viewSeg" role="tablist" aria-label="视图切换">
+      <button role="tab" data-v="3d" class="on" aria-selected="true" aria-controls="stage" tabindex="0">3D 地球</button>
+      <button role="tab" data-v="2d" aria-selected="false" aria-controls="stage" tabindex="-1">2D 地面轨迹</button>
+      <button role="tab" data-v="raise" aria-selected="false" aria-controls="stage" tabindex="-1">轨道爬升图</button>
+      <button role="tab" data-v="pass" aria-selected="false" aria-controls="stage" tabindex="-1">过境预报</button>
     </div>
     <div class="grow"></div>
     <div class="clock">
@@ -315,7 +325,7 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
     </div>
   </aside>
 
-  <main id="stage">
+  <main id="stage" role="tabpanel" aria-label="轨道视图">
     <canvas id="cv3d"></canvas>
     <canvas id="cv2d"></canvas>
     <iframe id="raiseFrame" title="轨道爬升图" style="position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#fff"></iframe>
@@ -330,7 +340,9 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
     <div class="overlay" id="updBar" title="点击立即刷新">🔄 程序已更新，点击这里刷新页面使用新版</div>
     <div class="overlay" id="vlabel">
       <button class="btn sm" id="btnTrail">轨迹：关</button>
-      <button class="btn sm" id="btnCover">覆盖圆：关</button>      <button class="btn sm" id="btnFollow">跟随选中：关</button>
+      <button class="btn sm" id="btnCover">覆盖圆：关</button>
+      <select class="btn sm" id="coverEl" title="覆盖圆按这个最低仰角计算；与「过境预报」共用同一个取值（默认 10°）"></select>
+      <button class="btn sm" id="btnFollow">跟随选中：关</button>
       <button class="btn sm" id="btnFit" title="自动调整视野，把当前可见卫星全部装进来">适配视野</button>
     </div>
     <div class="overlay" id="tip"></div>
@@ -341,7 +353,7 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
       <div class="pv-wrap">
         <h2>🛰 过境预报</h2>
         <p class="pv-sub">填入你所在地的经纬度，查看<b>此刻头顶</b>能看到的卫星与<b>未来过境</b>。
-          全部用本地缓存的 CelesTrak 根数 + SGP4 在本机推算，<b>位置不上传</b>；结果随根数缓存时间而变，长时间未联网会有偏差。</p>
+          全部用本地缓存的轨道根数 + SGP4 在本机推算，<b>位置不上传</b>；结果随根数缓存时间而变，长时间未联网会有偏差。</p>
 
         <div class="pv-loc">
           <div class="pv-field">
@@ -404,10 +416,11 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
           「几何过境」＝ 卫星相对观测点的仰角高于设定值的时段，是<b>几何上可见</b>、不是肉眼可见。
           能否被看到还取决于当时是否处于日照（卫星被太阳照亮）与大气条件，本页不做亮度预测。
           高轨三星几乎固定在赤道上方，通常不产生「过境」，而是长期停在固定的低仰角位置。
+          点结果里的任意一行，可在右侧「选中卫星」里查看这颗星的实时状态与所属组次。
         </p>
       </div>
     </section>
-    <div id="loading"><div class="box"><div class="spin"></div><div id="loadTxt">正在连接 CelesTrak 获取 TLE…</div></div></div>
+    <div id="loading"><div class="box"><div class="spin"></div><div id="loadTxt">正在连接数据源获取 TLE…</div></div></div>
   </main>
 
   <aside id="right">
@@ -423,10 +436,10 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
         <div class="li"><span class="dot" style="background:#257ddd"></span>星网 GW · 86.5° 壳层</div>
         <div class="li"><span class="dot" style="background:#22c55e"></span>星网 GW · 50° 壳层</div>
         <div class="li"><span class="dot" style="background:#ef4444"></span>中国星网高轨（同步轨道）</div>
-        <div class="li" style="margin-top:3px">位置由 CelesTrak TLE + SGP4 本地实时推算（ECEF 坐标系）。</div>
+        <div class="li" style="margin-top:3px">位置由轨道根数（TLE）+ SGP4 本地实时推算（ECEF 坐标系）。</div>
         <div class="li" style="margin-top:1px">「未正常升轨」＝ 发射超 1 年仍低于 1000 km，否则记「爬升中」。</div>
-        <div class="li" style="margin-top:1px">覆盖圆 ＝ 0° 仰角几何可视边界（按实时高度算）；实际通信范围受最低仰角等条件限制，会更小。</div>
-        <div class="li" style="margin-top:3px;color:var(--muted2)">数据来源：<a href="https://celestrak.org" target="_blank" rel="noopener" style="color:inherit">CelesTrak</a>；发射任务整理自卫星百科。</div>
+        <div class="li" style="margin-top:1px"><span>覆盖圆 ＝ 按<b>最低仰角</b>算的地面可视边界（按实时高度算；仰角可在上方切换 5°~30°，默认 10°，与「过境预报」共用）。</span></div>
+        <div class="li" style="margin-top:3px;color:var(--muted2)">数据来源：<a href="https://celestrak.org" target="_blank" rel="noopener" style="color:inherit">CelesTrak</a>（默认版）或 <a href="https://www.space-track.org" target="_blank" rel="noopener" style="color:inherit">Space-Track.org</a>（SpaceTrack 版）；发射任务整理自卫星百科。</div>
       </div>
     </div>
     <div class="pane" style="border-bottom:0">
@@ -454,7 +467,7 @@ select{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background
 "use strict";
 /* =========================================================================
    星座轨道实时查看器 —— 前端
-   数据：本地后端 /api/tle（CelesTrak TLE）+ SGP4（satellite.js）实时推算
+   数据：本地后端 /api/tle（CelesTrak / Space-Track 根数）+ SGP4（satellite.js）实时推算
    坐标：地球固连坐标系 ECEF，地球半径 = 1 场景单位
    ========================================================================= */
 const R_EARTH = 6378.137;               // km
@@ -480,6 +493,7 @@ const S = {
   playing: true,
   speed: 1,
   view: "3d",
+  v2: { z: 1, x: 0, y: 0 },   // 2D 视图的缩放/平移（x/y 是设备像素，z 是倍率）
   trailOn: false,
   coverOn: false,
   followOn: false,
@@ -787,7 +801,7 @@ function sunECEF(date) {
 /* ================================================================= 数据 */
 async function loadGroups() {
   try { S.groups = await api("/api/groups"); }
-  catch (e) { S.groups = { qianfan: { label: "千帆星座", sub: "QIANFAN", color: "#e8890c" }, gw: { label: "国网 / 星网 GW", sub: "HULIANWANG", color: "#2f7de1" } }; }
+  catch (e) { S.groups = { qianfan: { label: "千帆星座", sub: "QIANFAN", color: "#e8890c" }, gw: { label: "中国星网", sub: "HULIANWANG", color: "#2f7de1" } }; }
   const def = { qianfan: true, gw: true, gaogui: true };
   for (const k of Object.keys(S.groups)) S.enabled[k] = (k in S.enabled) ? S.enabled[k] : (def[k] !== false);
   renderGroupCards();
@@ -803,7 +817,7 @@ async function loadTLE(group, force) {
 async function loadAll(force, silent) {
   if (!silent) {
     $("#loading").style.display = "grid";
-    $("#loadTxt").textContent = force ? "正在从 CelesTrak 重新拉取 TLE…" : "正在连接 CelesTrak 获取 TLE…";
+    $("#loadTxt").textContent = force ? "正在从数据源重新拉取 TLE…" : "正在连接数据源获取 TLE…";
   }
   const want = Object.keys(S.enabled).filter(k => S.enabled[k]);
   const errs = [];
@@ -820,6 +834,12 @@ async function loadAll(force, silent) {
   const st = want.map(g => S.payload[g]).filter(Boolean);
   const stale = st.filter(p => p.stale);
   const refreshing = st.some(p => p.refreshing);
+  // 数据源标注随后端 payload.source（CT 版=CelesTrak / ST 版=Space-Track.org）
+  {
+    const _srcs = Array.from(new Set(st.map(p => p.source).filter(Boolean)));
+    const _note = $("#srcNote");
+    if (_note && _srcs.length) _note.textContent = _srcs.join(" / ");
+  }
   const banner = $("#banner");
   if (errs.length) { banner.className = "overlay err"; banner.style.display = "block"; banner.textContent = "⚠ 数据获取失败：" + errs.join("；"); }
   else if (stale.length && refreshing) { banner.className = "overlay"; banner.style.display = "block"; banner.textContent = "ℹ 正在后台刷新数据…（当前显示本地缓存，完成后自动更新）"; }
@@ -1043,9 +1063,10 @@ function renderBatchBar() {
 // 看全部卫星时隐藏开关并自动复位——473 颗全画圈画线太杂，而且按钮藏着但状态开着会让人困惑。
 function updateVlabel() {
   const scoped = !!(S.selected || S.batchFilter);
-  const bt = $("#btnTrail"), bc = $("#btnCover");
+  const bt = $("#btnTrail"), bc = $("#btnCover"), be = $("#coverEl");
   if (bt) bt.style.display = scoped ? "" : "none";
   if (bc) bc.style.display = scoped ? "" : "none";
+  if (be) be.style.display = scoped ? "" : "none";
   if (!scoped && (S.trailOn || S.coverOn)) {
     S.trailOn = false; S.coverOn = false;
     if (bt) bt.textContent = "轨迹：关";
@@ -1148,6 +1169,7 @@ function fitCanvas() {
     const c = $(id);
     if (c && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
   }
+  if (typeof clampV2 === "function") clampV2();   // 尺寸变了要重新夹一次平移量
   return dpr;
 }
 
@@ -1242,11 +1264,12 @@ function render3D(dpr) {
   if (S.coverOn && S.visible.length) {
     const covList = S.selected ? [S.selected] : S.visible;
     const vp = [], vc = [], SEG = 30;
+    const cel = coverElRad();   // 最低仰角（弧度）：与「过境预报」同一个取值
     for (const s of covList) {
       if (s.alt == null || s.lat === undefined) continue;
       const c = s.color.map(v => v / 255);
       const rr = 1 + s.alt / R_EARTH;
-      const beta = Math.acos(Math.min(1, 1 / rr));
+      const beta = Math.acos(clamp(Math.cos(cel) / rr, -1, 1)) - cel;
       const la = s.lat * D2R, lo = s.lon * D2R;
       const n = [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
       const u = [-Math.sin(lo), Math.cos(lo), 0];
@@ -1312,11 +1335,10 @@ function render3D(dpr) {
     vp.push(s.scene[0], s.scene[1], s.scene[2]);
     vc.push(c[0], c[1], c[2]);
     vs.push(isSel ? 11 : (s === S.hover ? 8 : 4.4));
-    // 星下点小点
-    const la = s.lat * D2R, lo = s.lon * D2R, rr = 1.002;
-    vp.push(rr * Math.cos(la) * Math.cos(lo), rr * Math.cos(la) * Math.sin(lo), rr * Math.sin(la));
-    vc.push(c[0], c[1], c[2]);
-    vs.push(isSel ? 6 : 2.3);
+    // ★ 千帆/国网版（2026-10-08 用户要求，与星链版同做法）：**不再在地球表面画星下点小图标**
+    //   ——点糊在地球上影响读图。星下点经纬度数据仍然照常计算、照常使用：
+    //   左侧列表、详情面板「星下点纬度 / 星下点经度」、悬停提示、覆盖圆、2D 地面轨迹、
+    //   过境预报用的全是同一份 s.lat / s.lon（数据一个不少，只是不画这个点）。
   }
   if (vp.length) {
     uploadAttr(GL.bPt, pp.a.aPos, vp, 3);
@@ -1371,14 +1393,70 @@ function mapLayout(w, h) {
   const mh = Math.min(h, w / 2), mw = mh * 2;
   return { ox: (w - mw) / 2, oy: (h - mh) / 2, mw, mh };
 }
+
+/* ★ 2026-10-25：2D 支持缩放/平移。手机竖屏下等经纬图只能按宽度铺满，是一条又扁又长的
+   「横向长条」，想看清高纬和组次细节没别的办法。做法：底图区域（base，用于裁剪）不变，
+   另算一个「内容矩形」——放大并平移；绘制与命中测试都走这个生效矩形，投影口径完全不变。 */
+function layout2D(w, h) {
+  const base = mapLayout(w, h);
+  const v = S.v2 || { z: 1, x: 0, y: 0 };
+  const mw = base.mw * v.z, mh = base.mh * v.z;
+  const cx = base.ox + base.mw / 2, cy = base.oy + base.mh / 2;
+  return { ox: cx - mw / 2 + v.x, oy: cy - mh / 2 + v.y, mw, mh, base, z: v.z };
+}
+
+/* 平移量夹在「内容必须铺满底图」的范围内；缩放上限 10× */
+function clampV2() {
+  const cv = $("#cv2d");
+  if (!cv || !S.v2) return;
+  const base = mapLayout(cv.width, cv.height);
+  const v = S.v2;
+  v.z = clamp(v.z, 1, 10);
+  if (v.z <= 1.0001) { v.z = 1; v.x = 0; v.y = 0; return; }
+  // 放大后地图可能比画布还大 —— 这时允许平移；比画布小时强制居中，避免露出底边白条
+  const mx = Math.max(0, (base.mw * v.z - cv.width) / 2);
+  const my = Math.max(0, (base.mh * v.z - cv.height) / 2);
+  v.x = clamp(v.x, -mx, mx);
+  v.y = clamp(v.y, -my, my);
+}
+
+/* 以画布上的 (px,py)（设备像素）为锚点缩放；锚点下方的地理点保持不动 */
+function zoom2D(factor, px, py) {
+  const cv = $("#cv2d");
+  if (!cv || !isFinite(factor) || factor <= 0) return;
+  const base = mapLayout(cv.width, cv.height);
+  const L = layout2D(cv.width, cv.height);
+  const z = clamp(L.z * factor, 1, 10);
+  if (Math.abs(z - L.z) < 1e-6) return;
+  const u = L.mw ? (px - L.ox) / L.mw : 0.5, v = L.mh ? (py - L.oy) / L.mh : 0.5;
+  const mw = base.mw * z, mh = base.mh * z;
+  const cx = base.ox + base.mw / 2, cy = base.oy + base.mh / 2;
+  S.v2.z = z;
+  S.v2.x = px - cx + mw * (0.5 - u);
+  S.v2.y = py - cy + mh * (0.5 - v);
+  clampV2();
+}
+
+function pan2D(dx, dy) {
+  if (!S.v2 || S.v2.z <= 1.0001) return;
+  S.v2.x += dx; S.v2.y += dy;
+  clampV2();
+}
+
+function reset2D() {
+  S.v2 = { z: 1, x: 0, y: 0 };
+}
 let CTX2D = null;
 function render2D(dpr) {
   const cv = $("#cv2d"), w = cv.width, h = cv.height;
   if (!CTX2D || CTX2D.canvas !== cv) CTX2D = cv.getContext("2d");
   const g = CTX2D;
-  const L = mapLayout(w, h);
+  const L = layout2D(w, h);   // 带缩放/平移的生效矩形（底图仍是 L.base）
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = "#eef2f7"; g.fillRect(0, 0, w, h);
+  // ★ 不裁到底图矩形：放大后让地图自然铺满整个画布（手机竖屏就是靠这个才不「条」）。
+  //   canvas 本身会裁掉越界部分，所以这里只要打开平滑即可。
+  g.imageSmoothingEnabled = true;
   g.drawImage(MAP_CV, L.ox, L.oy, L.mw, L.mh);
   const xy = (lon, lat) => [L.ox + (lon + 180) / 360 * L.mw, L.oy + (90 - lat) / 180 * L.mh];
 
@@ -1416,17 +1494,16 @@ function render2D(dpr) {
 
   // 卫星点
   const rBase = Math.max(1.9, dpr * 2.0);
+  const covAll = S.coverOn && !S.selected;   // 与 3D 同规则：选中时只画这一颗，且严格听开关的
   for (const s of S.visible) {
     const p = xy(s.lon, s.lat);
     const isSel = S.selected && s.id === S.selected.id;
-    // 选中卫星时只画这一颗的覆盖圆；未选中时开覆盖圆画全部。选中的星不管开关都画（聚焦效果）
-    if (isSel || (S.coverOn && !S.selected)) {
-      const gr = horizonKm(s.alt) / 111.32;
-      g.beginPath();
-      g.ellipse(p[0], p[1], gr / 360 * L.mw, gr / 180 * L.mh, 0, 0, Math.PI * 2);
+    if (S.coverOn && (isSel || covAll) && s.alt != null && s.lat !== undefined) {
       g.fillStyle = "rgba(" + s.color.join(",") + ",.10)";
       g.strokeStyle = "rgba(" + s.color.join(",") + ",.42)";
-      g.lineWidth = 1; g.fill(); g.stroke();
+      g.lineWidth = 1;
+      // 角半径（弧度）与 3D 同一口径；2D 按球面真圆画，不是把 β 当纬差的椭圆
+      paintCap2D(g, L, s.lat, s.lon, horizonKm(s.alt, OBS.minEl) / R_EARTH, isSel ? 192 : 72);
     }
   }
   for (const s of S.visible) {
@@ -1451,15 +1528,14 @@ function render2D(dpr) {
     const op = xy(OBS.lon, OBS.lat);
     g.save();
     g.beginPath(); g.rect(L.ox, L.oy, L.mw, L.mh); g.clip();
-    // 由最低仰角反推地面可视半径：γ = acos(Re/(Re+h)·cos e) − e，取星网高度作参考
-    const hRef = 1150;
-    const gam = Math.acos(clamp(R_EARTH / (R_EARTH + hRef) * Math.cos(OBS.minEl * D2R), -1, 1)) - OBS.minEl * D2R;
-    const gd = R_EARTH * gam / 111.32;     // 地面角半径（度）
-    g.beginPath();
-    g.ellipse(op[0], op[1], gd / 360 * L.mw, gd / 180 * L.mh, 0, 0, Math.PI * 2);
-    g.fillStyle = "rgba(224,52,43,.07)"; g.fill();
+    // 由最低仰角反推地面可视半径：与覆盖圆同一个口径（取星网高度作参考）。
+    // 同样按球面真圆画——观测点在 60°N 时旧椭圆会少画一半东西跨度。
+    const gam = horizonKm(1150, OBS.minEl) / R_EARTH;
+    g.fillStyle = "rgba(224,52,43,.07)";
+    g.strokeStyle = "rgba(224,52,43,.7)";
+    g.lineWidth = Math.max(1, dpr * 1.1);
     g.setLineDash([dpr * 5, dpr * 4]);
-    g.strokeStyle = "rgba(224,52,43,.7)"; g.lineWidth = Math.max(1, dpr * 1.1); g.stroke();
+    paintCap2D(g, L, OBS.lat, OBS.lon, gam, 144);
     g.setLineDash([]);
     const rr = dpr * 7;
     g.strokeStyle = "#e0342b"; g.lineWidth = Math.max(1.4, dpr * 1.5);
@@ -1479,9 +1555,103 @@ function render2D(dpr) {
   cacheMVP = null;
 }
 
-function horizonKm(alt) {
+/* 地面可视半径（km）：最低仰角 elDeg 时，由 acos(Re/(Re+h)·cos e) − e 反推地心角。
+   elDeg = 0 就是几何地平线（旧口径）；现在默认走「最低仰角」口径（默认 10°）。 */
+function horizonKm(alt, elDeg) {
   const a = R_EARTH + alt;
-  return R_EARTH * Math.acos(clamp(R_EARTH / a, -1, 1));
+  const el = (Number(elDeg) || 0) * D2R;
+  return R_EARTH * (Math.acos(clamp(R_EARTH / a * Math.cos(el), -1, 1)) - el);
+}
+
+/* 覆盖圆用的最低仰角（弧度）：与「过境预报」共用 OBS.minEl，保证两个视图口径一致。 */
+function coverElRad() { return clamp(Number(OBS.minEl) || 10, 0, 80) * D2R; }
+
+/* ---------------------------------------------------------------------------
+   2D 里的球面小圆（覆盖圆 / 观测点地平圈）。
+   角半径 β 的「圆」在球面上是小圆，投到等经纬图上不是椭圆：把 β 同时当纬差和经差
+   画椭圆，只有星下点在赤道时才恰好对——45° 少画 30%、60° 少 51%，星下点纬度超过
+   90°−β 时真实区域是绕极的整圈（360° 经度全在内），椭圆根本画不出来
+   （2026-10-07 修正；3D 用的是真角半径，本来就是对的，改完两个视图口径才一致）。
+
+   闭式解：纬线 φ 上的交线满足  A·sinφ + B·cosφ = cosβ，A = sinφ0、B = cosφ0·cosΔlon
+   ⇒  sin(φ+ψ) = cosβ/R，R = hypot(A, B)、ψ = atan2(B, A)
+   ⇒  φ 下界 = asin(cosβ/R) − ψ，上界 = π − asin(cosβ/R) − ψ（越过极点就截到 ±90°）。
+   形状只与「星下点纬度 + β」有关、与经度无关 ⇒ 按 0.5° 纬度量化缓存，473 颗共用一份。
+   --------------------------------------------------------------------------- */
+const _capCols = new Map();
+function capColumns(lat0, betaRad, N) {
+  const q = Math.round(lat0 * 2) / 2;
+  const key = q + "|" + betaRad.toFixed(6) + "|" + N;
+  let c = _capCols.get(key);
+  if (c) return c;
+  const s0 = Math.sin(q * D2R), c0 = Math.cos(q * D2R), cb = Math.cos(betaRad), bDeg = betaRad / D2R;
+  const cols = [];
+  for (let i = 0; i <= N; i++) {
+    const dl = -180 + 360 * i / N;
+    const A = s0, B = c0 * Math.cos(dl * D2R);
+    const R = Math.sqrt(A * A + B * B);
+    if (R < cb) { cols.push(null); continue; }   // 这条经线整条都在圆外
+    const a = Math.asin(clamp(cb / R, -1, 1)), ps = Math.atan2(B, A);
+    // 两个解先各自归一化到 ±180° 再筛：星下点在南半球时 ps 会落到 ±180° 附近，
+    // 不归一化会让下界整体差 360°，把 |Δlon|>90° 的经线全部丢掉
+    //（后果：南半球的高纬极冠只画出一半、地图接缝处多一条竖直边）。
+    const cand = [];
+    for (const raw of [(a - ps) / D2R, (Math.PI - a - ps) / D2R]) {
+      let v = raw % 360;
+      if (v > 180) v -= 360; else if (v < -180) v += 360;
+      if (v >= -90 && v <= 90) cand.push(v);
+    }
+    let lo, hi;
+    if (cand.length === 2) { lo = Math.min(cand[0], cand[1]); hi = Math.max(cand[0], cand[1]); }
+    else if (cand.length === 1) {           // 只交一次 ⇒ 另一边被极点截断
+      if (q + bDeg >= 90) { lo = cand[0]; hi = 90; }
+      else if (q - bDeg <= -90) { lo = -90; hi = cand[0]; }
+      else { lo = cand[0]; hi = cand[0]; }  // 理论到不了，保险给个退化列
+    } else if (q + bDeg >= 90 || q - bDeg <= -90) { lo = -90; hi = 90; }  // 整条经线都在圆内
+    else { cols.push(null); continue; }
+    cols.push(hi >= lo - 1e-9 ? [dl, lo, hi] : null);
+  }
+  c = { cols };
+  if (_capCols.size > 900) _capCols.clear();
+  _capCols.set(key, c);
+  return c;
+}
+
+/* 把小圆画到 2D 地图上（用当前 fillStyle / strokeStyle / lineWidth）。
+   x 按「展开后」的经度算，跨 ±180° 经线时整块平移 360° 一起画，
+   于是绕极区不会在地图接缝处断成两条。N 越大越平滑（全画 473 颗时用小的）。 */
+function paintCap2D(g, L, lat0, lon0, betaRad, N) {
+  const cols = capColumns(lat0, betaRad, N).cols;
+  let i0 = 0, i1 = cols.length - 1;
+  while (i0 <= i1 && !cols[i0]) i0++;
+  while (i1 >= i0 && !cols[i1]) i1--;
+  if (i0 > i1) return;
+  const lx = [], ly = [];
+  let mn = Infinity, mx = -Infinity;
+  for (let i = i0; i <= i1; i++) {         // 上界曲线正向
+    const c = cols[i]; if (!c) continue;
+    const lo = lon0 + c[0]; lx.push(lo); ly.push(c[2]);
+    if (lo < mn) mn = lo; if (lo > mx) mx = lo;
+  }
+  for (let i = i1; i >= i0; i--) {         // 下界曲线反向，闭合成多边形
+    const c = cols[i]; if (!c) continue;
+    const lo = lon0 + c[0]; lx.push(lo); ly.push(c[1]);
+    if (lo < mn) mn = lo; if (lo > mx) mx = lo;
+  }
+  if (lx.length < 3) return;
+  const k0 = Math.ceil((-180 - mx) / 360), k1 = Math.floor((180 - mn) / 360);
+  g.save();
+  g.beginPath(); g.rect(L.ox, L.oy, L.mw, L.mh); g.clip();
+  for (let k = k0; k <= k1; k++) {
+    g.beginPath();
+    for (let i = 0; i < lx.length; i++) {
+      const x = L.ox + (lx[i] + k * 360 + 180) / 360 * L.mw;
+      const y = L.oy + (90 - ly[i]) / 180 * L.mh;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath(); g.fill(); g.stroke();
+  }
+  g.restore();
 }
 
 /* ================================================================= 主循环 */
@@ -1581,6 +1751,19 @@ function renderGroupCards() {
   }
 }
 
+// 「两张爬升大图能不能自动更新」由后端探测后放在 /api/status.deliv 里。
+// 以前脚本缺失是静默跳过 —— 用户以为在更新、其实一直没动，这里如实报出来。
+let _deliv = null, _delivLoading = false;
+function loadDelivState() {
+  if (_delivLoading || _deliv) return;
+  _delivLoading = true;
+  fetch("/api/status", { cache: "no-store" })
+    .then(r => r.json())
+    .then(j => { _deliv = (j && j.deliv) || { ok: true }; })
+    .catch(() => { _deliv = { ok: true }; })       // 拿不到就别吓唬人
+    .then(() => { _delivLoading = false; renderStatus(); });
+}
+
 function renderStatus() {
   const rows = [];
   for (const g of Object.keys(S.payload)) {
@@ -1593,7 +1776,12 @@ function renderStatus() {
   }
   const ages = Object.keys(S.payload).map(g => S.payload[g].epoch_age_days).filter(v => v != null);
   rows.push("<div style='margin-top:6px'>TLE 历元最新数据龄约 <b>" + (ages.length ? Math.min.apply(null, ages).toFixed(2) : "—") + " 天</b>；后端每 2 小时缓存刷新一次。</div>");
+  if (_deliv && _deliv.ok === false) {
+    rows.push("<div style='margin-top:6px;color:var(--warn)'>爬升大图自动更新：<b>不可用</b><br>" +
+      esc(_deliv.why || "") + "</div>");
+  }
   $("#status").innerHTML = rows.join("");
+  loadDelivState();          // 首次调用时异步取一次，回来后自己重画
 }
 
 function updateList(rebuild) {
@@ -1768,7 +1956,7 @@ function pickAt(cx, cy) {
   let best = null, bestD = 196;   // 14 CSS px 半径平方
   if (S.view === "2d") {
     if (!r.width) return null;
-    const L = mapLayout(cv.width, cv.height);
+    const L = layout2D(cv.width, cv.height);   // 命中测试同样走缩放/平移后的矩形
     const fx = r.width / cv.width, fy = r.height / cv.height;
     const tol = 10;   // 2D 视图：命中半径放宽到 10 CSS px
     bestD = tol * tol;
@@ -1953,7 +2141,7 @@ function renderObsNow() {
   }
   box.innerHTML = rows.map(r => {
     const st = obsRowStyle(r[0]);
-    return "<div class='pv-row now' style='border-left:3px solid " + st.col + "'>" +
+    return "<div class='pv-row now' data-norad='" + esc(r[0].norad) + "' style='border-left:3px solid " + st.col + "'>" +
       "<span class='nm'>" + esc(r[0].name) + "</span>" +
       "<span class='mt'>" + esc(st.label) + " · " + num(r[0].alt, 0) + " km</span>" +
       "<span class='rt'><b>" + num(r[1].el, 1) + "°</b><div class='mt'>方位 " + num(r[1].az, 0) +
@@ -2046,7 +2234,8 @@ function renderPassList() {
     const live = now >= p.start && now <= p.end;
     const mins = Math.max(1, Math.round((p.end - p.start) / 60000));
     const when = live ? "进行中" : fmtLocal(new Date(p.start)).slice(5, 16);
-    return "<div class='pv-row" + (live ? " now" : "") + "' style='border-left:3px solid " + st.col + "'>" +
+    return "<div class='pv-row" + (live ? " now" : "") + "' data-norad='" + esc(p.sat.norad) +
+      "' style='border-left:3px solid " + st.col + "'>" +
       "<span class='nm'>" + esc(p.sat.name) + "</span>" +
       "<span class='mt'>" + esc(st.label) + " · " + num(p.sat.alt, 0) + " km</span>" +
       "<span class='rt'><b>" + when + "</b><div class='mt'>最高 " + num(p.maxEl, 1) + "° · " +
@@ -2111,7 +2300,7 @@ function obsStartPick() {
 function obsPickAt(cx, cy) {
   const cv = $("#cv2d"), r = cv.getBoundingClientRect();
   if (!r.width) return false;
-  const L = mapLayout(cv.width, cv.height);
+  const L = layout2D(cv.width, cv.height);
   const x = (cx - r.left) / r.width * cv.width;
   const y = (cy - r.top) / r.height * cv.height;
   const lon = (x - L.ox) / L.mw * 360 - 180;
@@ -2182,7 +2371,15 @@ function bindUI() {
   // 视图切换
   const setView = (v) => {
     S.view = v;
-    for (const x of $("#viewSeg").children) x.classList.toggle("on", x.dataset.v === v);
+    // aria-selected / 漫游 tabindex 跟着一起切（无障碍：读屏要能知道当前是哪个视图）
+    for (const x of $("#viewSeg").children) {
+      const on = x.dataset.v === v;
+      x.classList.toggle("on", on);
+      if (x.hasAttribute("role")) {
+        x.setAttribute("aria-selected", on ? "true" : "false");
+        x.tabIndex = on ? 0 : -1;
+      }
+    }
     $("#stage").classList.toggle("v2d", v === "2d");
     $("#stage").classList.toggle("vraise", v === "raise");
     $("#stage").classList.toggle("vpass", v === "pass");
@@ -2205,9 +2402,26 @@ function bindUI() {
     if (v === "2d") CTX2D = null;
   };
   S.setView = setView;
+  // 给 mobile.js 的双指捏合用（它管不到这里的闭包）
+  S.zoom2D = zoom2D; S.pan2D = pan2D; S.reset2D = reset2D;
   $("#viewSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     setView(b.dataset.v);
+  });
+  // 方向键在页签之间移动并直接切换（WAI-ARIA tabs 的 automatic activation）
+  $("#viewSeg").addEventListener("keydown", (e) => {
+    const tabs = Array.from($("#viewSeg").querySelectorAll("button[data-v]"));
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    let n = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") n = (i + 1) % tabs.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") n = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") n = 0;
+    else if (e.key === "End") n = tabs.length - 1;
+    if (n === null) return;
+    e.preventDefault();
+    tabs[n].focus();
+    setView(tabs[n].dataset.v);
   });
   $("#raiseBar").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-r]"); if (!b) return;
@@ -2229,6 +2443,7 @@ function bindUI() {
   }
   $("#pvMinEl").addEventListener("change", (e) => {
     OBS.minEl = Number(e.target.value); OBS.passes = []; obsSave(); renderObsNow(); renderPassList();
+    if (covSel) covSel.value = String(OBS.minEl);   // 同步「覆盖圆」那一处控件
   });
   $("#pvScope").addEventListener("change", (e) => {
     OBS.scope = e.target.value; OBS.passes = []; obsSave(); renderObsNow(); renderPassList();
@@ -2238,10 +2453,29 @@ function bindUI() {
   });
   obsRestore();
   $("#pvMinEl").value = String(OBS.minEl);
+  // 覆盖圆的最低仰角：与「过境预报」共用 OBS.minEl，两处控件互相同步（口径统一）。
+  // 用 var 声明以便上面那个 handler 提前引用（hoisting）。
+  var covSel = $("#coverEl");
+  if (covSel) {
+    covSel.innerHTML = OBS_MINEL.map((v) => '<option value="' + v + '">≥' + v + '°</option>').join("");
+    covSel.value = String(OBS.minEl);
+    covSel.addEventListener("change", (e) => {
+      OBS.minEl = Number(e.target.value); OBS.passes = []; obsSave();
+      $("#pvMinEl").value = String(OBS.minEl);
+      renderObsNow(); renderPassList();
+    });
+  }
   $("#pvScope").value = OBS.scope;
   $("#pvHours").value = String(OBS.hours);
   if (OBS.lat != null) applyObserver(false, true);
   else { renderObsNow(); renderPassList(); }
+  // 点结果里的某一行 → 在右侧详情面板显示这颗星（不切视图，列表留着不打断阅读）
+  $("#passView").addEventListener("click", (e) => {
+    const row = e.target.closest && e.target.closest(".pv-row[data-norad]");
+    if (!row) return;
+    const s = S.sats.find(x => String(x.norad) === row.dataset.norad);
+    if (s) select(s);
+  });
 
   // 播放 / 速度
   const setPlay = (v) => {
@@ -2339,6 +2573,11 @@ function bindUI() {
       if (S.view === "3d") {
         S.cam.lon -= dx * 0.28; S.cam.lat = clamp(S.cam.lat + dy * 0.24, -89, 89);
         if (S.followOn) { S.followOn = false; $("#btnFollow").textContent = "跟随选中：关"; }
+      } else if (S.view === "2d" && S.v2 && S.v2.z > 1) {
+        // 2D 放大后按住拖动 = 平移地图（未放大时不响应，避免误触）
+        const cv = $("#cv2d"), r = cv.getBoundingClientRect();
+        const k = r.width ? cv.width / r.width : 1;
+        pan2D(dx * k, dy * k);
       }
       return;
     }
@@ -2382,8 +2621,22 @@ function bindUI() {
     if (S.view === "3d") {
       e.preventDefault();
       S.cam.dist = clamp(S.cam.dist * (1 + Math.sign(e.deltaY) * 0.08), 1.14, 45);
+    } else if (S.view === "2d") {
+      // 2D：滚轮以光标为锚点缩放（放大之后才有「看细节」的意义）
+      e.preventDefault();
+      const cv = $("#cv2d"), r = cv.getBoundingClientRect();
+      if (!r.width) return;
+      const k = cv.width / r.width;
+      // 按 deltaY 的**幅度**缩放，别用 sign()：触控板一次手势会发几十个小 deltaY，
+      // 每帧固定 15% 会瞬间放到最大（2026-10-25 实测踩到）。
+      const step = Math.max(-180, Math.min(180, e.deltaY));
+      zoom2D(Math.pow(1.0018, -step), (e.clientX - r.left) * k, (e.clientY - r.top) * k);
     }
   }, { passive: false });
+  // 双击复位；未放大时什么都不做，免得跟「点选卫星」抢手势
+  stage.addEventListener("dblclick", (e) => {
+    if (S.view === "2d" && S.v2 && S.v2.z > 1) { e.preventDefault(); reset2D(); }
+  });
 
   // 顶部按钮
   $("#btnTrail").addEventListener("click", () => {
@@ -2500,5 +2753,7 @@ async function watchBootId() {
 }
 document.addEventListener("DOMContentLoaded", boot);
 </script>
+<!-- 必须在主脚本之后：要读上面的顶层 const S（见 web/mobile.js 顶部说明） -->
+<script src="/web/mobile.js"></script>
 </body>
 </html>
