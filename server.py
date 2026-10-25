@@ -136,7 +136,7 @@ GROUPS = {
         "drop_name_contains": ("TEST", "JISHU SHIYAN"),
     },
     "gaogui": {
-        "label": "星网高轨（同步轨道）",
+        "label": "中国星网高轨（同步轨道）",
         "sub": "卫星互联网高轨卫星 01/02/03 星",
         "name": "hulianwan gaogui",
         "color": "#ef4444",
