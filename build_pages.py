@@ -126,6 +126,35 @@ def shim_batch_hist(hist, grp, bat):
             "count": len(out), "sats": out}
 
 
+def cmp_json(o):
+    """比对用的规范化序列化：**剔除 now / base**。
+    ★ 2026-10-25：这两个是「历史库的时间戳」，服务端运行期会自己追平（可能比磁盘文件新几秒），
+    与「组次筛选逻辑对不对」无关。原来连它们一起严格比，结果 46 个批次全被判"不一致"，
+    构建直接失败 —— 真逻辑不一致才该失败，时间戳差几秒不该。"""
+    d = dict(o or {})
+    d.pop("now", None)
+    d.pop("base", None)
+    return json.dumps(d, sort_keys=True, ensure_ascii=False)
+
+
+def wait_fresh(base, g, d, timeout=180):
+    """★ 2026-10-25：服务端是 stale-while-revalidate —— 第一次请求只回旧缓存，后台才开始刷新。
+    原样烘下去 = 把「正在刷新」这一帧永久冻进静态站：线上页面顶部常驻
+    「正在后台刷新数据…」、状态卡永远「缓存兜底」，用户以为数据没更新（其实历元已经是最新）。
+    所以烘快照之前必须等这批数据真的落地（refreshing=false 且 stale=false），最多等 timeout 秒；
+    等不到就按缓存烘，但要把 error 文案换成静态站说得通的说法。"""
+    t0 = time.time()
+    while (d.get("refreshing") or d.get("stale")) and time.time() - t0 < timeout:
+        time.sleep(1.5)
+        d = http_json(base + "/api/tle?group=" + urllib.parse.quote(g))
+    dt = time.time() - t0
+    if d.get("refreshing") or d.get("stale"):
+        log("  \u26a0 %s \u7b49\u4e86 %.0fs \u4ecd\u672a\u5237\u65b0\u5b8c\u6210\uff0c\u53ea\u80fd\u6309\u7f13\u5b58\u70d8" % (g, dt))
+    elif dt >= 1.5:
+        log("  \u00b7 %s \u7b49\u5230\u540e\u53f0\u5237\u65b0\u5b8c\u6210\uff0c\u7528\u65f6 %.1fs" % (g, dt))
+    return d
+
+
 def main():
     ap = argparse.ArgumentParser(description="生成 GitHub Pages 静态站（docs/）")
     ap.add_argument("--keep", action="store_true", help="保留 docs/ 已有文件")
@@ -147,10 +176,16 @@ def main():
         tle, counts = {}, {}
         for g in keys:
             d = http_json(base + "/api/tle?group=" + urllib.parse.quote(g))
+            d = wait_fresh(base, g, d)      # ★ 等后台刷新落地，别把「刷新中」烘进去
+            # 静态站没有后台：把 SWR 的瞬时状态洗掉，否则页面会永远说自己正在刷新
+            d["refreshing"] = False
+            if d.get("stale"):
+                d["error"] = "构建时未取到最新根数，本页为缓存快照（每 12 小时自动重烘）"
             tle[g] = d
             counts[g] = len(d.get("sats") or d.get("objects") or [])
-            log("  /api/tle?group=%-8s  %d 颗  %.0f KB"
-                % (g, counts[g], len(json.dumps(d, ensure_ascii=False)) / 1024.0))
+            log("  /api/tle?group=%-8s  %d 颗  %.0f KB  历元 %s  数据龄 %.2f 天  stale=%s"
+                % (g, counts[g], len(json.dumps(d, ensure_ascii=False)) / 1024.0,
+                   d.get("epoch_max") or "-", d.get("epoch_age_days") or -1, d.get("stale")))
 
         # 逐日历史：一次装齐，供 iframe 子页现场切片
         hist_path = os.path.join(HERE, "data", "sat_hist.json")
@@ -191,11 +226,14 @@ def main():
                 except Exception:
                     continue                       # 该组没有这个批次，服务端 404，合法
                 mine = shim_batch_hist(hist, g, b)
-                if json.dumps(real, sort_keys=True, ensure_ascii=False) != \
-                   json.dumps(mine, sort_keys=True, ensure_ascii=False):
+                if cmp_json(real) != cmp_json(mine):
                     bad += 1
                     log("  !! 不一致：group=%s batch=%s（真接口 %d 颗 / 快照 %d 颗）"
                         % (g, b, len(real.get("sats") or []), len(mine.get("sats") or [])))
+                # ★ 2026-10-25：服务端的 hist 库在运行期会自己追平（`now` 比磁盘文件新几秒），
+                #   快照用服务端那份，页面时间轴才不会比数据短一截。
+                if real.get("now") and real["now"] != hist.get("now"):
+                    hist["now"] = real["now"]
         if bad:
             raise SystemExit("组次逻辑与真接口有 %d 处不一致，先修 pages_shim.js 再发布" % bad)
         log("  ✓ 全部一致")

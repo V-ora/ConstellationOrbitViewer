@@ -31,6 +31,24 @@
     });
   }
 
+  /* ★ 2026-10-25：静态站没有后台，但烘焙时如果正撞上服务端 SWR 的「刷新中」那一帧，
+     payload 里会带着 refreshing=true / stale=true / error="后台正在刷新数据…"。
+     原样交给页面 = 顶部常驻「正在后台刷新」红条 + 状态卡永远「缓存兜底 · 后台正在刷新」，
+     用户看到以为数据没更新（其实历元已经是最新的）。这里在适配层把瞬时状态洗掉，
+     改成静态站该有的说法：有数据就说有数据，真缺就明说「构建时没取到」。 */
+  function sanitizeTle(d) {
+    if (!d || typeof d !== "object") return d;
+    d.refreshing = false;
+    d.from_cache = false;
+    if (d.stale) {
+      d.error = "构建时未取到最新根数，本页为缓存快照（每 12 小时自动重烘）";
+    } else {
+      d.error = "";
+    }
+    if (!d.fetched_at) d.fetched_at = META.date;
+    return d;
+  }
+
   /* ---------------------------------------------------------------- 路由解析 */
   /* 页面里写的是 /api/tle?group=qianfan 这种**绝对路径**。
      绝对路径在 `user.github.io/仓库名/` 子目录下会解析到域名根 → 404，
@@ -110,7 +128,10 @@
         if (r.path === "tle") {
           var g = r.q.group || "qianfan";
           // force=1 不再有意义：数据就是构建时那一份
-          return origFetch(API + "tle-" + encodeURIComponent(g) + ".json");
+          // ★ 必须过 sanitizeTle：否则烘焙时残留的「刷新中」状态会让页面永远说自己在刷新
+          return origFetch(API + "tle-" + encodeURIComponent(g) + ".json")
+            .then(function (resp) { return resp.json(); })
+            .then(function (d) { return jsonRes(sanitizeTle(d)); });
         }
         if (r.path === "ping") {
           return Promise.resolve(jsonRes({
