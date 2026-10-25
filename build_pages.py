@@ -259,6 +259,10 @@ def main():
         shutil.copytree(os.path.join(HERE, "web"), os.path.join(OUT, "web"),
                         ignore=shutil.ignore_patterns("index.html"))
         shutil.copyfile(os.path.join(HERE, "pages_shim.js"), os.path.join(OUT, "pages_shim.js"))
+        # 分享卡片预览图：用 README 里的 3D 地球截图，存成 ASCII 名的 og.png
+        og_src = os.path.join(HERE, "预览_3D地球.png")
+        if os.path.isfile(og_src):
+            shutil.copyfile(og_src, os.path.join(OUT, "og.png"))
 
         # 4. 首页：绝对路径 → 相对路径，并注入静态元信息 + 适配层
         html = io.open(root_index, encoding="utf-8").read()
@@ -277,7 +281,27 @@ def main():
                "%3Cellipse cx='16' cy='16' rx='11' ry='5.2' fill='none' stroke='%23fff'"
                " stroke-width='2' transform='rotate(-30 16 16)'/%3E"
                "%3Ccircle cx='16' cy='16' r='4.2' fill='%23fff'/%3E%3C/svg%3E\">\n")
-        inject = (fav +
+        # ★ 2026-10-25：分享卡片。静态站是纯前端，爬虫不会执行 JS，
+        #   所以标题/描述/预览图必须写死在 HTML 里，否则发到群里只有一条裸链接。
+        site = "https://v-ora.github.io/ConstellationOrbitViewer/"
+        desc = ("千帆星座（QIANFAN）与中国星网（HULIANWANG DIGUI）的实时轨道查看器："
+                "3D 地球 / 2D 地面轨迹 / 轨道爬升大图 / 过境预报，当前 %d 颗"
+                "（千帆 %d · 星网低轨 %d · 中国星网高轨 %d）。免安装，浏览器直接看，手机也能开。"
+                % (sum(counts.values()), counts.get("qianfan", 0),
+                   counts.get("gw", 0), counts.get("gaogui", 0)))
+        social = ('<meta name="description" content="%s">\n'
+                  '<meta property="og:type" content="website">\n'
+                  '<meta property="og:site_name" content="星座轨道实时查看器">\n'
+                  '<meta property="og:title" content="星座轨道实时查看器 · 千帆 / 中国星网">\n'
+                  '<meta property="og:description" content="%s">\n'
+                  '<meta property="og:url" content="%s">\n'
+                  '<meta property="og:image" content="%sog.png">\n'
+                  '<meta property="og:image:width" content="1570">\n'
+                  '<meta property="og:image:height" content="838">\n'
+                  '<meta property="og:image:alt" content="星座轨道实时查看器 · 3D 地球视图">\n'
+                  '<meta name="twitter:card" content="summary_large_image">\n'
+                  % (desc, desc, site, site))
+        inject = (fav + social +
                   '<script>window.__COV_STATIC__=%s;</script>\n'
                   '<script src="pages_shim.js"></script>\n'
                   % json.dumps(meta, ensure_ascii=False, separators=(",", ":")))

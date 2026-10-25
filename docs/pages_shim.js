@@ -49,7 +49,40 @@
       d.error = "";
     }
     if (!d.fetched_at) d.fetched_at = META.date;
+    checkFresh(d);
     return d;
+  }
+
+  /* ★ 2026-10-25：兜底告警 —— 快照超过 48 小时没更新（等于 Actions 连续 4 轮没跑成），
+     说明自动更新链路已经坏了。页面平时只有一行日期，没人会注意，所以直接把黄条顶上去。
+     阈值给到 48 h：偶尔延迟/失败一轮不该吓人，连续坏掉才提示。
+     ★ 用**自建元素**而不是 #banner：那个元素归页面主脚本的状态机管，
+       loadAll() 一路跑完会把它 display:none，抢过来必被覆盖（实测过）。 */
+  var _warnedOld = false;
+  function checkFresh(d) {
+    if (_warnedOld || !d || !d.fetched_at) return;
+    var t = Date.parse(String(d.fetched_at).replace(" ", "T"));
+    if (!t || isNaN(t)) return;
+    var hours = (Date.now() - t) / 3600000;
+    if (hours < 48) return;
+    _warnedOld = true;
+    var old = document.getElementById("covStale");
+    if (old) old.remove();
+    var el = document.createElement("div");
+    el.id = "covStale";
+    el.style.cssText = "position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:99999;"
+      + "background:#5c3a05;color:#ffd479;border:1px solid #b7791f;border-radius:10px;"
+      + "padding:8px 34px 8px 14px;font-size:12.5px;line-height:1.6;max-width:min(760px,92vw);"
+      + "box-shadow:0 8px 24px rgba(0,0,0,.4);text-align:center";
+    el.innerHTML = "⚠ 这份快照已经 <b>" + Math.floor(hours) + " 小时</b>没更新了"
+      + "（正常每 12 小时自动重烘）—— 自动更新可能已中断，数据仅供参考。";
+    var x = document.createElement("span");
+    x.textContent = "×";
+    x.title = "知道了，关掉";
+    x.style.cssText = "position:absolute;right:10px;top:4px;cursor:pointer;font-size:16px;opacity:.7";
+    x.onclick = function () { el.remove(); };
+    el.appendChild(x);
+    document.body.appendChild(el);
   }
 
   /* ---------------------------------------------------------------- 路由解析 */
