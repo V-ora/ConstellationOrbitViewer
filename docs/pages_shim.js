@@ -18,6 +18,9 @@
   "use strict";
 
   var META = window.__COV_STATIC__ || { date: "", counts: {}, total: 0 };
+  // 桌面版 / 浏览器版 exe 的下载入口。用 `releases/latest` 而不是写死版本号，
+  // 以后每发一版都不用再动这里。
+  var DL_URL = "https://github.com/V-ora/ConstellationOrbitViewer/releases/latest";
   var IN_RAISE = /\/web\/raise\//.test(location.pathname);   // 是不是被大图 iframe 载入的子页
   var origFetch = window.fetch ? window.fetch.bind(window) : null;
   // 子页在 web/raise/ 下，回退两级才是 api/；主页就在 docs/ 根。两处都要相对，
@@ -200,6 +203,26 @@
       rf.textContent = "⏸ 数据快照";
       rf.title = "静态站数据由 GitHub Actions 每 12 小时自动更新；本页不能手动刷新，刷新浏览器可拿到最新快照";
     }
+
+    /* ★ 2026-10-25：网页版天生只能「看」，想装到本地得有条路 —— 指向 GitHub Releases。
+       只在静态站出现（本文件只被 docs/ 加载，exe 里没有它）；窄屏隐藏（手机上顶栏放不下，
+       但右侧「数据状态」里还有同一个入口）。 */
+    var dlcss = document.createElement("style");
+    dlcss.textContent = "#dlExe{margin-left:8px;text-decoration:none}"
+      + "#dlExe:hover{opacity:.85}"
+      + "@media (max-width:900px){#dlExe{display:none}}";
+    document.head.appendChild(dlcss);
+    if (rf && rf.parentNode) {
+      var dl = document.createElement("a");
+      dl.id = "dlExe";
+      dl.className = "btn";
+      dl.href = DL_URL;
+      dl.target = "_blank";
+      dl.rel = "noopener";
+      dl.textContent = "⬇ 下载桌面版";
+      dl.title = "桌面版 / 浏览器版 exe（GitHub Releases，免安装）";
+      rf.parentNode.insertBefore(dl, rf.nextSibling);
+    }
     document.addEventListener("click", function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
@@ -221,7 +244,10 @@
         + " / 高轨 " + (META.counts.gaogui || 0) + "）。<br>"
         + "位置仍会按当时根数实时推算、地球会转。<br>"
         + "站点数据由 GitHub Actions 每 12 小时（UTC 00/12 ≈ 北京 08:00 / 20:00）"
-        + "自动重烘并重新发布；本页不能手动刷新，刷新浏览器即可拿到最新一份。";
+        + "自动重烘并重新发布；本页不能手动刷新，刷新浏览器即可拿到最新一份。<br>"
+        + "想装到本地：<a href=\"" + DL_URL + "\" target=\"_blank\" rel=\"noopener\" "
+        + "style=\"color:var(--pri,#3b82f6);text-decoration:none\">⬇ 下载桌面版 / 浏览器版 exe</a>"
+        + "（免安装，双击即用）";
       st.parentNode.appendChild(d);
     }
   }
