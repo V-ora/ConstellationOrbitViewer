@@ -1672,9 +1672,22 @@ function paintCap2D(g, L, lat0, lon0, betaRad, N) {
 /* ================================================================= 主循环 */
 let lastFrame = performance.now();
 let lastPropSim = -1;
+/* ★ 2026-10-26（用户反馈「用一会就自己时间偏移」）：模拟时间改成**按真实时钟推算**，
+   不再逐帧累加。原来是 `S.simTime += Math.min(250, 帧间隔) * speed` ——
+   只要某一帧超过 250 ms（重绘卡顿、GC、切窗口、后台标签页 rAF 被节流/冻结），
+   多出来的那截时间就被永久丢掉，而且**永远追不回来**：HUD 的「时间偏移」越用越大。
+   实测：卡顿 1.5 s 丢 1.26 s；页面冻结 3 s 丢 4.5 s。
+   现在用「基准点 + 经过时间 × 倍速」：任何卡顿后下一帧自动追平，
+   切回前台也会立刻对齐真实时间。暂停/调速/拖时间轴时把基准点重设即可。 */
+let clockBase = { sim: 0, wall: 0 };
+function rebaseClock() {
+  clockBase.sim = S.simTime;
+  clockBase.wall = Date.now();      // ★ 用挂钟而不是 performance.now()：
+                                    //   后者在页面被冻结/节流期间可能一起停走（实测冻结 3 s 丢 4.5 s）
+}
 function loop(ts) {
-  const dtReal = Math.min(250, ts - lastFrame); lastFrame = ts;
-  if (S.playing && S.speed > 0) S.simTime += dtReal * S.speed;
+  lastFrame = ts;
+  if (S.playing && S.speed > 0) S.simTime = clockBase.sim + (Date.now() - clockBase.wall) * S.speed;
   const now = new Date(S.simTime);
   // 暂停且时间未变时不必重复推算，让拖动旋转更顺滑
   if (S.simTime !== lastPropSim) {
@@ -2496,6 +2509,7 @@ function bindUI() {
   const setPlay = (v) => {
     S.playing = v;
     $("#btnPlay").innerHTML = v ? "⏸ 暂停" : "▶ 播放";
+    rebaseClock();     // 暂停/恢复都以当前模拟时间为新基准点
   };
   $("#btnPlay").addEventListener("click", () => { setPlay(!S.playing); if (S.playing) $("#speed").value = String(S.speed || 60); });
   $("#speed").addEventListener("change", (e) => {
@@ -2503,8 +2517,8 @@ function bindUI() {
     S.speed = v;
     setPlay(v > 0);
   });
-  $("#btnNow").addEventListener("click", () => { S.simTime = Date.now(); });
-  $("#timeSlider").addEventListener("input", (e) => { S.simTime = Date.now() + Number(e.target.value) * 60000; });
+  $("#btnNow").addEventListener("click", () => { S.simTime = Date.now(); rebaseClock(); });
+  $("#timeSlider").addEventListener("input", (e) => { S.simTime = Date.now() + Number(e.target.value) * 60000; rebaseClock(); });
 
   // 刷新
   $("#btnRefresh").addEventListener("click", async () => { await loadAll(true); });
@@ -2737,6 +2751,7 @@ async function boot() {
   updateVlabel();   // 初始无选中/无组次 → 隐藏轨迹/覆盖圆开关
   // 数据就绪后再把模拟时间对齐到「现在」，避免加载耗时造成偏移
   S.simTime = Date.now();
+  rebaseClock();     // 基准点必须在第一帧之前立好，否则会按 ts-0 算出一个巨大的跳变
   // URL 参数：#sel=60379 载入后直接选中该 NORAD 卫星（便于分享 / 定位）
   const ms = location.hash.match(/sel=(\d+)/i);
   if (ms) { const t = S.sats.find(x => String(x.norad) === ms[1]); if (t) select(t); }
