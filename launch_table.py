@@ -52,6 +52,7 @@ def load_merged(group_key, hand_fp):
     rows = []
     for r in out.values():
         r["rocket"] = norm_rocket(r.get("rocket"))
+        r["site"] = norm_site(r.get("site"))
         rows.append(r)
     rows.sort(key=lambda x: (x.get("time") or "", x.get("cospar") or ""))
     return rows
@@ -67,3 +68,24 @@ def model_of(rocket):
     s = re.split(r"[（(]", s)[0]
     s = re.split(r"\s*遥", s)[0]
     return s.strip()
+
+# ---------------------------------------------------------------- 站点名归一
+# 2026-10-28：三份源对同一发射场的写法各不相同 ——
+#   人工表（千帆）  : 海南商发 LC-1      ← 与其它两处不一致
+#   人工表（星网）  : 海南商发 LCC-1
+#   卫星百科自动同步 : 海商 LCC-1
+# 统一成「海南商发 LCC-n」。只对「海南商发/海商」前缀生效，
+# 避免把「文昌 LC-101」「太原 LC-9A」这类误改成 LCC。
+_SITE_PREFIX = ("海商 ", "海南商发 ")
+_SITE_LC = ("海南商发 LC-", "海南商发 LCC-")
+
+
+def norm_site(s):
+    s = (s or "").strip()
+    for a, b in zip(_SITE_PREFIX[::2], _SITE_PREFIX[1::2]):
+        if s.startswith(a):
+            s = b + s[len(a):]
+            break
+    if s.startswith(_SITE_LC[0]):
+        s = _SITE_LC[1] + s[len(_SITE_LC[0]):]
+    return s
