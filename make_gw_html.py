@@ -45,7 +45,10 @@ if os.path.isdir(_DELIV01):
     OUTS.append(os.path.join(_DELIV01, '国网低轨卫星轨道爬升交互大图.html'))
 
 H = json.load(open(os.path.join(HERE, 'data', 'sat_hist.json'), encoding='utf-8'))
-LA = json.load(open(os.path.join(HERE, 'data', 'gw_launches.json'), encoding='utf-8'))
+# ★ 2026-10-28：发射任务表改成「卫星百科自动同步 + 人工表覆盖」合并，
+#   新发射当天就能进表，不必再手补 gw_launches.json。
+import launch_table
+LA = launch_table.load_merged('gw', os.path.join(HERE, 'data', 'gw_launches.json'))
 
 # ---------------------------------------------------------------- 元信息（COSPAR）
 META = {}

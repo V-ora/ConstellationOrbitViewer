@@ -32,7 +32,9 @@ if not os.path.isfile(ANA_PATH):
 A = json.load(open(ANA_PATH, encoding='utf-8'))
 print('元信息：%s（%d 颗）' % (ANA_PATH, len(A.get('sats') or [])))
 H = json.load(open(os.path.join(HERE, 'data', 'sat_hist.json'), encoding='utf-8'))
-LA = json.load(open(os.path.join(HERE, 'data', 'launches.json'), encoding='utf-8'))
+# ★ 2026-10-28：同上，走「自动同步 + 人工表覆盖」的合并表
+import launch_table
+LA = launch_table.load_merged('qianfan', os.path.join(HERE, 'data', 'launches.json'))
 META = {str(s['catnr']): s for s in A['sats']}
 
 S_OK, S_ADJ, S_CLIMB, S_PARK, S_STOP = ('已抵达工作轨道', '已进入工作轨道（在轨调整）',
