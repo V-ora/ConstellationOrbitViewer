@@ -38,20 +38,24 @@ jobs:
 
       # ---- 以下三步都依赖外网（CelesTrak）。任何一步失败都不该拖垮整体：
       #      历史/大图没更新，至少根数（下一步）还能刷新。失败原因在 Actions 日志里能看到。
-      - name: 1/4 追平逐日历史末点
+      - name: 1/5 追平逐日历史末点
         continue-on-error: true
         run: python local_backfill.py
 
-      - name: 2/4 重生成千帆爬升大图
+      - name: 2/5 回填逐日历史缺口（只补缺数据的星）
+        continue-on-error: true
+        run: python backfill_hist_missing.py --max-age 3 --limit 120
+
+      - name: 3/5 重生成千帆爬升大图
         continue-on-error: true
         run: python make_qf_html.py
 
-      - name: 3/4 重生成中国星网爬升大图
+      - name: 4/5 重生成中国星网爬升大图
         continue-on-error: true
         run: python make_gw_html.py
 
       # ---- 核心：重新抓 TLE 并烘出 docs/ 快照（这一步失败就整体失败，因为没有新数据可发）
-      - name: 4/4 重新生成静态站 docs/
+      - name: 5/5 重新生成静态站 docs/
         run: python build_pages.py
 
       - name: 提交并推送
