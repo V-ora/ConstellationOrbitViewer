@@ -53,14 +53,12 @@ def member(cr, name):
 
 CASES = [
     # exe 名, 期望含过境预报, 期望对应的磁盘页面
-    ("星座轨道实时查看器.exe", True, os.path.join(HERE, "web", "index.html")),
-    ("星座轨道实时查看器_桌面版.exe", True, os.path.join(HERE, "web", "index.html")),
+    ("星座轨道实时查看器_CelesTrak版.exe", True, os.path.join(HERE, "web", "index.html")),
+    ("星座轨道实时查看器_CelesTrak版_桌面版.exe", True, os.path.join(HERE, "web", "index.html")),
     # SpaceTrack 版与 CelesTrak 版**共用同一份 web/**，差异只在 runtime hook 注入的数据源，
     # 所以页面/历史库必须与 web/ 完全一致（2026-10-15 补：原先漏核这两个）
     ("星座轨道实时查看器_SpaceTrack版.exe", True, os.path.join(HERE, "web", "index.html")),
     ("星座轨道实时查看器_SpaceTrack版_桌面版.exe", True, os.path.join(HERE, "web", "index.html")),
-    ("星座轨道实时查看器_无过境预报.exe", False, os.path.join(HERE, "_features", "index_original.html")),
-    ("星座轨道实时查看器_无过境预报_桌面版.exe", False, os.path.join(HERE, "_features", "index_original.html")),
 ]
 
 # SpaceTrack 版归档里的 runtime hook 条目名（有=注入 spacetrack，无=CelesTrak）

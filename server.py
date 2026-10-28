@@ -1421,10 +1421,76 @@ def st_group_rows(group_key):
     return arr
 
 
+try:
+    SATCAT_ALL = st_source.shared_satcat_store()   # 与火箭末级共用一份，保证「每天只下一次」
+except Exception:
+    SATCAT_ALL = os.path.join(CACHE_DIR, "st_satcat_all.json")
+
+
+def st_satcat_all():
+    """SATCAT 本地库：首次全量，之后每天只取 `file/>NN` 增量（Space-Track 政策：每天 1 次）。
+
+    2026-10-26 账号被暂停后改：原来按组、按批次各查一次 satcat，一天能打十几次。
+    """
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    cached = read_json(SATCAT_ALL) or {}
+    rows = cached.get("rows") if isinstance(cached.get("rows"), list) else []
+    last_file = int(cached.get("last_file") or 0)
+    if cached.get("day") == today and rows:
+        return rows
+    try:
+        if rows and last_file:
+            delta = st_json(ST_Q.format(cls="satcat", pred="file", val=">%d" % last_file,
+                                        extra="/orderby/FILE"))
+            if isinstance(delta, list) and delta:
+                idx = {str(r.get("NORAD_CAT_ID")): r for r in rows if isinstance(r, dict)}
+                top = last_file
+                for r in delta:
+                    if not isinstance(r, dict):
+                        continue
+                    k = str(r.get("NORAD_CAT_ID") or "")
+                    if k:
+                        idx[k] = r
+                    try:
+                        top = max(top, int(r.get("FILE") or 0))
+                    except Exception:
+                        pass
+                rows = list(idx.values())
+                last_file = top
+                log("ST SATCAT 增量 %d 条（file>%d），合并后 %d 条" % (len(delta), top, len(rows)))
+            else:
+                log("ST SATCAT 增量无变化（file>%d）" % last_file)
+        else:
+            full = st_json(ST_Q.format(cls="satcat", pred="NORAD_CAT_ID", val=">0",
+                                       extra="/orderby/NORAD_CAT_ID"))
+            if isinstance(full, list) and full:
+                rows = full
+                top = 0
+                for r in full:
+                    if isinstance(r, dict):
+                        try:
+                            top = max(top, int(r.get("FILE") or 0))
+                        except Exception:
+                            pass
+                last_file = top
+                log("ST SATCAT 全量 %d 条（首次，之后每天只取增量）" % len(rows))
+        if rows:
+            write_json(SATCAT_ALL, {"day": today, "count": len(rows),
+                                    "last_file": last_file, "rows": rows})
+            return rows
+    except Exception as e:
+        log("ST SATCAT 更新失败，改用本地已有 %d 条：%s" % (len(rows), e))
+    return rows
+
+
 def st_satcat_rows(pattern):
-    """ST satcat 表按名字包含检索，字段归一到 CT satcat JSON 的键名
-    （fetch_group_meta 第 2 步的合并循环按 CT 键名取值，两边共用一段代码）。"""
-    arr = st_json(ST_Q.format(cls="satcat", pred="OBJECT_NAME", val=pattern, extra=""))
+    """按名字包含检索 SATCAT —— **在本地库上过滤**，不再每次打接口。
+
+    字段归一到 CT satcat JSON 的键名（fetch_group_meta 第 2 步的合并循环按 CT 键名取值）。
+    """
+    key = (pattern or "").lstrip("~").upper()
+    arr = [r for r in st_satcat_all()
+           if isinstance(r, dict) and (not key or key in (r.get("OBJECT_NAME") or "").upper())]
     out = []
     for r in arr if isinstance(arr, list) else []:
         if not isinstance(r, dict):
@@ -1507,11 +1573,13 @@ def intdes_lookup(cos, net):
             _INTDES_CACHE[cos] = ent
         return ent["rows"]
     if DATA_SRC == "spacetrack":
-        # ST 模式：satcat 表按国际标识符**包含**检索（1 次请求；无 CT 那套 403 限流，
-        # 出站节奏由 st_source 全局限流统一管）。OBJECT_TYPE 是全称，归一后过滤。
-        arr = st_json(ST_Q.format(cls="satcat", pred="INTLDES", val="~~" + cos, extra=""))
+        # ST 模式：从**本地 SATCAT 库**按国际标识符前缀过滤（不再按批次打接口）。
+        # OBJECT_TYPE 是全称，归一后过滤。
+        arr = [r for r in st_satcat_all()
+               if isinstance(r, dict)
+               and (r.get("OBJECT_ID") or r.get("INTLDES") or "").strip().upper().startswith(cos.upper())]
         rows = []
-        for r in arr if isinstance(arr, list) else []:
+        for r in arr:
             norad = str(r.get("NORAD_CAT_ID") or "")
             if not norad.isdigit() or _st_objtype(r.get("OBJECT_TYPE")) != "PAY":
                 continue   # 只要载荷；R/B 与碎片不算业务星

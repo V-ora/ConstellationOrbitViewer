@@ -147,10 +147,8 @@ print("    E 段从「三处/两处跨目录副本」改为「工程内两处副
 print("    大图 PNG 时效放宽到 7 天——与查看器改动无关，数据来自 hist 缓存）")
 print("=" * 70)
 WS = os.path.dirname(HERE)
-EXES = [("星座轨道实时查看器.exe", os.path.join(HERE, "")),
-        ("星座轨道实时查看器_桌面版.exe", os.path.join(HERE, "")),
-        ("星座轨道实时查看器_无过境预报.exe", os.path.join(HERE, "不含过境预报版")),
-        ("星座轨道实时查看器_无过境预报_桌面版.exe", os.path.join(HERE, "不含过境预报版")),
+EXES = [("星座轨道实时查看器_CelesTrak版.exe", os.path.join(HERE, "")),
+        ("星座轨道实时查看器_CelesTrak版_桌面版.exe", os.path.join(HERE, "")),
         # SpaceTrack 版（2026-10-09 新增；业务差异只在数据源，同样根/dist 两处一致）
         ("星座轨道实时查看器_SpaceTrack版.exe", os.path.join(HERE, "")),
         ("星座轨道实时查看器_SpaceTrack版_桌面版.exe", os.path.join(HERE, ""))]

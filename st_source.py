@@ -172,10 +172,104 @@ def _st_get(op, url, timeout=180):
 
 # ---------------------------------------------------------------- 会话复用 + 全局限流
 _ST_MIN_GAP = 2.1              # 秒。30/分钟 = 2.0 秒/次，取 2.1 留余量
-_ST_MAX_PER_HOUR = 280         # 次。限额 300/小时，留 20 次余量
+_ST_MAX_PER_HOUR = 200        # 次。限额 300/小时；2026-10-26 从 280 降到 200（留 1/3 余量）
 _ST_STATS = {"calls": 0, "throttled": 0, "logins": 0, "session_hits": 0}
 _st_rl_lock = threading.Lock()
 _st_rl = {"last": 0.0, "hour": []}
+
+
+# ---------------------------------------------------------------- 跨进程共享限流（2026-10-26）
+# 为什么有这一层：_ST_MAX_PER_HOUR / _ST_MIN_GAP 原来是**进程内**变量。
+# 同时开两个程序（或同一程序开两份）就能叠加成 560 次/小时、57 次/分钟，
+# 双双超过 Space-Track 的 300 次/小时、30 次/分钟 —— 会被封。
+# 现在所有进程共用一份磁盘账本：谁要出站，先在同目录的锁里登记一个时间戳。
+_SHARED_DIR = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "SpaceTrack")
+_SHARED_RATE = "rate.json"
+_SHARED_LOCK = "rate.lock"
+
+
+def shared_dir():
+    """跨程序共用的目录（限流账本、SATCAT 库、出站台账、日限标记都在这里）。"""
+    try:
+        os.makedirs(_SHARED_DIR, exist_ok=True)
+    except Exception:
+        pass
+    return _SHARED_DIR
+
+
+def shared_path(name):
+    return os.path.join(shared_dir(), name)
+
+
+class _SharedLock(object):
+    """跨进程互斥：O_EXCL 建锁文件 + 30 秒陈旧清理（不依赖 msvcrt/fcntl）。"""
+
+    def __init__(self, path, timeout=30.0):
+        self.path = path
+        self.timeout = timeout
+
+    def __enter__(self):
+        t0 = time.time()
+        while True:
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                return self
+            except FileExistsError:
+                try:
+                    if time.time() - os.path.getmtime(self.path) > 30:
+                        os.remove(self.path)
+                        continue
+                except Exception:
+                    pass
+                if time.time() - t0 > self.timeout:
+                    raise RuntimeError("等待 Space-Track 出站锁超时：%s" % self.path)
+                time.sleep(0.05)
+
+    def __exit__(self, *a):
+        try:
+            os.remove(self.path)
+        except Exception:
+            pass
+
+
+def _shared_slot(min_gap, per_hour):
+    """申请一个「整机唯一」的出站名额。返回 (还要等几秒, 是否拿到)。"""
+    try:
+        lp = shared_path(_SHARED_LOCK)
+        rp = shared_path(_SHARED_RATE)
+        now = time.time()
+        with _SharedLock(lp):
+            data = {}
+            try:
+                with open(rp, encoding="utf-8") as f:
+                    data = json.load(f) or {}
+            except Exception:
+                data = {}
+            # 只认「过去一小时内」的时间戳；顺手丢掉未来时间（系统时间回拨时不至于卡死）
+            stamps = [t for t in (data.get("ts") or [])
+                      if isinstance(t, (int, float)) and 0 <= now - t < 3600.0]
+            if len(stamps) >= per_hour:
+                return 3600.0 - (now - min(stamps)) + 0.5, False
+            last = max(stamps) if stamps else 0.0
+            if last and now - last < min_gap:
+                return min_gap - (now - last), False
+            stamps.append(now)
+            data["ts"] = stamps[-400:]
+            data["updated"] = now
+            tmp = rp + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp, rp)
+            return 0.0, True
+    except Exception:
+        # 目录不可写等极端情况：宁可放行也不要死等（本进程自己的限流仍在）
+        return 0.0, True
+
+
+def shared_satcat_store():
+    """跨程序共用的 SATCAT 库文件（星座 ST 版与火箭末级从此只维护一份、每天只下一次）。"""
+    return shared_path("satcat_all.json")
 
 
 def _st_throttle():
@@ -194,10 +288,17 @@ def _st_throttle():
             if wait <= 0:
                 _st_rl["last"] = now
                 _st_rl["hour"].append(now)
-                _ST_STATS["calls"] += 1
-                return
+                break
             _ST_STATS["throttled"] += 1
         time.sleep(min(wait, 20.0))
+    # ★ 跨进程排队：2.1 秒间隔与 200 次/小时按「整机」算，多开程序也不会叠加
+    while True:
+        _w, _got = _shared_slot(_ST_MIN_GAP, _ST_MAX_PER_HOUR)
+        if _got:
+            _ST_STATS["calls"] += 1
+            return
+        _ST_STATS["throttled"] += 1
+        time.sleep(min(max(_w, 0.2), 20.0))
 
 
 _st_sess_lock = threading.Lock()
@@ -232,8 +333,80 @@ def rate_stats():
         return dict(_ST_STATS, recent_calls=len(_st_rl["hour"]))
 
 
+# ================================================================ 账号安全阀（2026-10-26）
+# 背景：2026-10-26 账号被 Space-Track 暂停，理由「SATCAT 每天下载超过一次」
+#       —— 我们曾对每一发火箭各查一次 class/satcat，一次全量刷新就 58 次。
+# 三道闸全部装在**传输层**，上层逻辑绕不过去：
+#   1) 急停：COV_ST_PAUSED=1，或在程序目录/缓存目录放 ST_PAUSED 空文件 →
+#      所有出站请求立刻拒绝（不登录、不发网络）。恢复时删掉即可。
+#   2) SATCAT 日限：非 /file/ 的 class/satcat 查询，每 UTC 日最多 1 次，超限抛错。
+#      （政策：18 SDS 每天 17:00Z 后更新一次；日常增量应走 class/satcat/file/<号>。）
+#   3) 台账：每次真正发出的请求追加一行「UTC 时间 + URL」到 <cache>/st_calls.log，
+#      便于自查，也便于向 Space-Track 说明我们会在什么时间发什么 URL。
+# 注意：日限在**发起前**记账（失败也算用过一次），宁可少查不可多查。
+_ST_PAUSE_MARKERS = ("ST_PAUSED", "spacetrack.pause")
+_ST_SATCAT_STATE = "st_satcat_day.json"
+_ST_CALL_LOG = "st_calls.log"
+
+
+def _st_policy_pause():
+    v = (os.environ.get("COV_ST_PAUSED") or "").strip()
+    if v and v.lower() not in ("0", "false", "no", "off"):
+        raise RuntimeError("Space-Track 出站已暂停（COV_ST_PAUSED=%s）。账号恢复后再解除。" % v)
+    for d in (_HERE, _CACHE):
+        if not d:
+            continue
+        for n in _ST_PAUSE_MARKERS:
+            p = os.path.join(d, n)
+            if os.path.isfile(p):
+                raise RuntimeError("Space-Track 出站已暂停（存在 %s）。账号恢复后删掉该文件即可。" % p)
+
+
+def _st_policy_satcat(url):
+    """SATCAT 每 UTC 日最多一次（Space-Track 政策）。/file/<号> 增量不受限。"""
+    low = (url or "").lower()
+    if "class/satcat" not in low or "/file/" in low:
+        return
+    if not _CACHE:
+        return
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    state = {}
+    try:
+        with open(shared_path(_ST_SATCAT_STATE), encoding="utf-8") as f:
+            state = json.load(f) or {}
+    except Exception:
+        state = {}
+    if state.get("day") == today and int(state.get("n") or 0) >= 1:
+        raise RuntimeError(
+            "SATCAT 今天（UTC %s）已经取过 1 次，按 Space-Track 政策不再重复查询；"
+            "要更新请等 17:00Z 之后走 class/satcat/file/<文件号> 增量接口。" % today)
+    state["day"] = today
+    state["n"] = int(state.get("n") or 0) + 1
+    try:
+        os.makedirs(_CACHE, exist_ok=True)
+        with open(shared_path(_ST_SATCAT_STATE), "w", encoding="utf-8") as f:
+            json.dump(state, f)
+    except Exception:
+        pass
+
+
+def _st_policy_log(url):
+    if not _CACHE:
+        return
+    try:
+        os.makedirs(_CACHE, exist_ok=True)
+        with open(shared_path(_ST_CALL_LOG), "a", encoding="utf-8") as f:
+            f.write("%s\t%s\n" % (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), url))
+    except Exception:
+        pass
+# ================================================================ 安全阀结束
+
+
 def st_query(url, timeout=240, tries=3):
     """带「限流 + 会话复用 + 429/401 自动重试」的一次 Space-Track 查询，返回 (bytes, 出口说明)。"""
+    _st_policy_pause()
+    _st_policy_satcat(url)
+    _st_policy_log(url)
     identity, password = credentials()
     if not identity:
         raise RuntimeError(
