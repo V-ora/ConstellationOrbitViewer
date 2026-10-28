@@ -55,3 +55,15 @@ def load_merged(group_key, hand_fp):
         rows.append(r)
     rows.sort(key=lambda x: (x.get("time") or "", x.get("cospar") or ""))
     return rows
+
+def model_of(rocket):
+    """从火箭串里取出**型号**，用于「运载火箭构成」统计。
+
+    ★ 2026-10-28：'长征六号甲（遥号未公开）' 里没有「空格+遥」，
+    原来用 split(' 遥')[0] 会把这整串当成型号，于是它和大部队「长征六号甲」
+    被算成两个不同的火箭，在表头单独列一项。这里统一去掉括号说明与遥号。
+    """
+    s = (rocket or "").strip()
+    s = re.split(r"[（(]", s)[0]
+    s = re.split(r"\s*遥", s)[0]
+    return s.strip()

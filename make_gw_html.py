@@ -272,7 +272,8 @@ if _miss:
     print('!! 有 %d 次发射没匹配到卫星：%s' % (len(_miss), [x['grp'] for x in _miss]))
 print('发射任务 %d 次，卫星合计 %d' % (len(launch_list), sum(x['n'] for x in launch_list)))
 
-rocket_stat = collections.Counter(x['lv'] for x in launch_list)
+# ★ 2026-10-28：按型号统计（去掉「（遥号未公开）」这类括号说明，避免同一型号被拆成两项）
+rocket_stat = collections.Counter(launch_table.model_of(x.get('rocket') or x.get('lv')) for x in launch_list)
 
 # ---------------------------------------------------------------- 卡片
 status_cnt = collections.Counter(x['st'] for x in sats)

@@ -132,7 +132,7 @@ for x in launch_list:
 
 rocket_stat = {}
 for x in launch_list:
-    lv = x['rocket'].split(' 遥')[0]
+    lv = launch_table.model_of(x['rocket'])
     rocket_stat[lv] = rocket_stat.get(lv, 0) + 1
 
 status_cnt = {}
