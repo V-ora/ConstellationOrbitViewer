@@ -302,6 +302,9 @@ data = dict(t0=T0.isoformat(), now=NOW.strftime('%Y-%m-%d %H:%M'), t50=T50, t86=
 
 # ---------------------------------------------------------------- 模板补丁
 html = open(TEMPLATE, encoding='utf-8').read()
+# ★ 2026-11-04：公共交互核心内联（千帆/国网/黎明同一份）
+with open(os.path.join(HERE, 'web', 'raise', 'chart_core.js'), encoding='utf-8') as _cf:
+    html = html.replace('__CHART_CORE__', _cf.read())
 orig = html
 
 # ① 时间窗贴合数据

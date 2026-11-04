@@ -120,11 +120,13 @@ for name, path in CHARTS:
         warn.append("%s：%d 颗卫星的 launch 日期与发射日相差 >1 天（高亮按日匹配会错）"
                     % (name, len(bad)))
 
-    # 6) 渲染代码是否仍用"按日高亮"（防回退）
-    if "hoverCos" not in html:
-        fail.append("%s：渲染代码里没有 hoverCos —— 高亮可能退化成按发射日匹配" % name)
+    # 6) 渲染代码必须走公共核心（防退回本地复制）
+    if "ChartCore.highlightBatch" not in html:
+        fail.append("%s：渲染代码没有调用 ChartCore.highlightBatch —— 高亮逻辑又各自复制了" % name)
     else:
-        print("  6) 渲染代码已按 COSPAR 高亮 ✓")
+        print("  6) 高亮走 ChartCore 公共核心 ✓")
+    if "global.ChartCore" not in html:
+        fail.append("%s：页面里没有内联 chart_core.js" % name)
 
 print("\n" + "=" * 60)
 for w in warn:

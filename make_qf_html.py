@@ -266,6 +266,10 @@ __CARDS__
   鼠标悬停可查看任一卫星对应时刻的高度；悬停表格行或图中发射刻度可高亮该次发射的全部卫星；滚轮缩放时间轴，Shift+滚轮缩放高度轴。
 </div>
 <script>
+/* ---- 公共交互核心（生成时由 web/raise/chart_core.js 内联）---- */
+__CHART_CORE__
+</script>
+<script>
 const DATA = __DATA__;
 // 曲线统一用「千帆」主题色（与查看器左侧分组的千帆色 #f5a524 一致）
 // —— 早前按「是否就位」二分着色（绿/橙），与查看器的配色体系不一致，已取消。
@@ -474,49 +478,9 @@ function draw() {
 
   // 悬停发射列的竖向高亮带（置于曲线之下）
   if (hoverLaunch !== null) {
-    const px = X(hoverLaunch);
-    ctx.fillStyle = 'rgba(47,85,151,.09)';
-    ctx.fillRect(px - 9, T, 18, B - T);
-  }
-
-  // 曲线（裁剪在绘图区内）
-  ctx.save();
-  ctx.beginPath(); ctx.rect(L, T, R - L, B - T); ctx.clip();
-
-  const order = DATA.sats.map((s, i) => i).filter(i => SHOW[DATA.sats[i].s]);
-  order.sort((a, b) => DATA.sats[a].l < DATA.sats[b].l ? -1 : 1);
-  order.forEach(i => {
-    const s = DATA.sats[i], col = COL[s.s];
-    ctx.strokeStyle = col + '66'; ctx.lineWidth = 1.05;
-    ctx.beginPath();
-    let pen = false;                        // ★ 跳过的点必须重新 moveTo，
-    for (let k = 0; k < s.p.length; k++) {  //   否则缩放后视口外的点会让线段跨星连线
-      const q = s.p[k];
-      if (q[0] < tMin - 5 || q[0] > tMax + 5) { pen = false; continue; }
-      const x = X(q[0]), y = Y(q[1]);
-      if (pen) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); pen = true; }
-    }
-    ctx.stroke();
-  });
-  if (hoverLaunch !== null) {
-    order.forEach(i => {
-      const s = DATA.sats[i];
-      // ★ 2026-10-31：按 **COSPAR** 匹配，不再按发射日。
-      //   反例：极轨19组 2026-09-15 14:26（北京）= 06:26 UTC，极轨26组 2026-09-16 06:00（北京）
-      //   = 2026-09-15 22:00 UTC —— 两发在 UTC 是同一天，按日匹配会把 26 组那 9 颗（805 km）
-      //   也算进 19 组的高亮里（用户 2026-10-31 反馈）。
-      //   只有在拿不到 COSPAR 时才退回按日匹配。
-      if (hoverCos && s.cs) {
-        if (s.cs !== hoverCos) return;
-      } else {
-        const lt = (new Date(s.l + 'T00:00:00Z').getTime() - new Date(DATA.t0).getTime()) / 86400000;
-        if (Math.abs(lt - hoverLaunch) > 0.5) return;
-      }
-      ctx.strokeStyle = COL[s.s]; ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      s.p.forEach((q, k) => { const x = X(q[0]), y = Y(q[1]); k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-      ctx.stroke();
-    });
+    // 归属判定统一走 ChartCore（COSPAR 优先、按日兜底）——见 web/raise/chart_core.js
+    ChartCore.highlightBatch({ order, sats: DATA.sats, ctx, X, Y,
+      colorOf: s => COL[s.s], hoverLaunch, hoverCos, t0: DATA.t0, lineWidth: 2.6 });
   }
   order.forEach(i => {
     const s = DATA.sats[i];
@@ -586,12 +550,7 @@ function focusLaunch(t) {
 }
 
 function pickLaunch(mx) {
-  let best = null;
-  DATA.launches.forEach(x => {
-    if (x.t < tMin || x.t > tMax) return;
-    if (Math.abs(X(x.t) - mx) < 9) best = x;
-  });
-  return best;
+  return ChartCore.pickLaunch(mx, { launches: DATA.launches, tMin, tMax, X });
 }
 function launchTip(x) {
   tip.innerHTML = '<b>' + x.grp + '（' + x.n + ' 颗卫星）</b>' +
@@ -720,7 +679,11 @@ for x in sats:
     x['s'] = 0 if x['st'] in REACHED else 1
 
 # 一次写两处：查看器静态目录（打包进 exe）+ 交付物目录，避免重跑后还要手动搬
+# ★ 2026-11-04：公共交互核心内联（千帆/国网/黎明同一份，改一处全生效）
+with open(os.path.join(HERE, 'web', 'raise', 'chart_core.js'), encoding='utf-8') as _cf:
+    _CORE = _cf.read()
 HTML_OUT = (HTML.replace('__DATA__', json.dumps(data, ensure_ascii=False, separators=(',', ':')))
+                .replace('__CHART_CORE__', _CORE)
                 .replace('__CARDS__', CARDS))
 # 「组次单独爬升图」面板：共用片段，插在大图之后、页脚之前（千帆 / 国网两版注入同一份文件，
 # 保证两边行为完全一致；片段只用到本页已有的 DATA，所以离线打开也照常可用）
