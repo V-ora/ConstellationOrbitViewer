@@ -127,7 +127,7 @@ let onlyLast = false, showLaunch = true, fullY = true;
 let tMin = -20, tMax = (new Date(DATA.now.replace(' ', 'T')) - new Date(DATA.t0)) / 86400000 + 10;
 if (window.parent !== window) document.body.classList.add('emb');
 let yMin = 770, yMax = 1210;    // = YLIM_FULL，与「适应全部高度范围」按钮初始态一致
-let hoverLaunch = null, hover = null;
+let hoverLaunch = null, hoverCos = null, hover = null;
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const tip = document.getElementById('tip');
@@ -172,8 +172,8 @@ DATA.launches.forEach(x => {
     '<td class="c" style="color:' + COL[x.shell] + ';font-weight:bold">' +
     (x.shell === 0 ? '50°壳层' : '86.5°壳层') + '</td>' +
     '<td>' + pills + '</td>';
-  tr.addEventListener('mouseenter', () => { hoverLaunch = x.t; draw(); });
-  tr.addEventListener('mouseleave', () => { hoverLaunch = null; draw(); });
+  tr.addEventListener('mouseenter', () => { hoverLaunch = x.t; hoverCos = x.cospar || null; draw(); });
+  tr.addEventListener('mouseleave', () => { hoverLaunch = null; hoverCos = null; draw(); });
   tr.addEventListener('click', () => { focusLaunch(x.t); bpOpen(x, tr); });  // 同时在大图下方单独出该组次的爬升图
   tbody.appendChild(tr);
 });
@@ -330,8 +330,16 @@ function draw() {
   if (hoverLaunch !== null) {
     order.forEach(i => {
       const s = DATA.sats[i];
-      const lt = (new Date(s.l + 'T00:00:00Z').getTime() - new Date(DATA.t0).getTime()) / 86400000;
-      if (Math.abs(lt - hoverLaunch) > 0.5) return;
+      // ★ 2026-11-04：改按 **COSPAR** 匹配。原来按发射日，而 x.t 是 UTC 日期、
+      //   s.l 是北京时间日期，跨日发射（例：低轨27组 北京 10-10 / UTC 10-09）差 1 天，
+      //   结果一颗都不高亮（用户 2026-11-04 反馈「这里也没有」）。
+      //   只有在拿不到 COSPAR 时才退回按日匹配。
+      if (hoverCos && s.cs) {
+        if (s.cs !== hoverCos) return;
+      } else {
+        const lt = (new Date(s.l + 'T00:00:00Z').getTime() - new Date(DATA.t0).getTime()) / 86400000;
+        if (Math.abs(lt - hoverLaunch) > 0.5) return;
+      }
       ctx.strokeStyle = COL[s.s]; ctx.lineWidth = 2.6;
       ctx.beginPath();
       s.p.forEach((q, k) => { const x = X(q[0]), y = Y(q[1]); k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
@@ -465,14 +473,14 @@ cv.addEventListener('mousemove', e => {
 
   const lx = pickLaunch(mx);
   if (lx) {
-    if (hoverLaunch !== lx.t) { hoverLaunch = lx.t; draw(); }
+    if (hoverLaunch !== lx.t || hoverCos !== (lx.cospar || null)) { hoverLaunch = lx.t; hoverCos = lx.cospar || null; draw(); }
     launchTip(lx);
     tip.style.display = 'block';
     placeTip(tip, e.clientX, e.clientY);
     hover = null;
     return;
   }
-  if (hoverLaunch !== null) { hoverLaunch = null; draw(); }
+  if (hoverLaunch !== null) { hoverLaunch = null; hoverCos = null; draw(); }
 
   const h = pick(mx, my);
   if (h !== hover) { hover = h; draw(); if (h) highlight(h); }
