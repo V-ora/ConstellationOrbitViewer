@@ -2,8 +2,6 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<script src="../../pages_shim.js"></script>
-
 <title>组次轨道爬升叠加图</title>
 <style>
   *{box-sizing:border-box}
@@ -203,6 +201,17 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(g.L, y); ctx.lineTo(g.W - g.R, y); ctx.stroke(); ctx.restore();
     ctx.fillStyle = "#2fa06a"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
     ctx.fillText("工作轨道 " + s.target.toFixed(1) + " km", g.L + 6, y - 3);
+  }
+  // ★ 2026-11-06：千帆的每张「极轨XX组」爬升图都加一条 1000 km 参考虚线（用户要求）
+  if (GROUP === "qianfan") {
+    const ry = Y(1000);
+    if (ry > g.T + 2 && ry < g.T + g.ph - 2) {
+      ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(g.L, ry); ctx.lineTo(g.W - g.R, ry); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = "#8b96a6"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      ctx.font = "12px 'Microsoft YaHei',sans-serif";
+      ctx.fillText("1000 km", g.L + 6, ry - 3);
+    }
   }
   // 入轨点标记（每颗的起点）
   for (const s of series){

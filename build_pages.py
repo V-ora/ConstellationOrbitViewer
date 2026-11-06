@@ -34,6 +34,15 @@ import shutil
 import socket
 import subprocess
 import sys
+
+# ★ 2026-11-06：先把 web/raise/* 镜像到 web_live/raise/（exe 的磁盘覆盖层），
+#   否则改了页面但 exe 仍读旧副本（batch.html / sat.html 曾因此看不到改动）。
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import sync_web_live
+    sync_web_live.main()
+except Exception as _e:
+    print('  !! web_live 同步失败（不影响烘页面）：%s' % _e)
 import time
 import urllib.parse
 import urllib.request
