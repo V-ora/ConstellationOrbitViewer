@@ -478,6 +478,31 @@ function draw() {
 
   // 悬停发射列的竖向高亮带（置于曲线之下）
   if (hoverLaunch !== null) {
+    const px = X(hoverLaunch);
+    ctx.fillStyle = 'rgba(47,85,151,.09)';
+    ctx.fillRect(px - 9, T, 18, B - T);
+  }
+
+  // 曲线（裁剪在绘图区内）
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L, T, R - L, B - T); ctx.clip();
+
+  const order = DATA.sats.map((s, i) => i).filter(i => SHOW[DATA.sats[i].s]);
+  order.sort((a, b) => DATA.sats[a].l < DATA.sats[b].l ? -1 : 1);
+  order.forEach(i => {
+    const s = DATA.sats[i], col = COL[s.s];
+    ctx.strokeStyle = col + '66'; ctx.lineWidth = 1.05;
+    ctx.beginPath();
+    let pen = false;                        // ★ 跳过的点必须重新 moveTo，
+    for (let k = 0; k < s.p.length; k++) {  //   否则缩放后视口外的点会让线段跨星连线
+      const q = s.p[k];
+      if (q[0] < tMin - 5 || q[0] > tMax + 5) { pen = false; continue; }
+      const x = X(q[0]), y = Y(q[1]);
+      if (pen) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); pen = true; }
+    }
+    ctx.stroke();
+  });
+  if (hoverLaunch !== null) {
     // 归属判定统一走 ChartCore（COSPAR 优先、按日兜底）——见 web/raise/chart_core.js
     ChartCore.highlightBatch({ order, sats: DATA.sats, ctx, X, Y,
       colorOf: s => COL[s.s], hoverLaunch, hoverCos, t0: DATA.t0, lineWidth: 2.6 });
@@ -679,7 +704,7 @@ for x in sats:
     x['s'] = 0 if x['st'] in REACHED else 1
 
 # 一次写两处：查看器静态目录（打包进 exe）+ 交付物目录，避免重跑后还要手动搬
-# ★ 2026-11-04：公共交互核心内联（千帆/国网/黎明同一份，改一处全生效）
+# ★ 2026-11-04：公共交互核心内联（千帆/国网/黎明同一份）
 with open(os.path.join(HERE, 'web', 'raise', 'chart_core.js'), encoding='utf-8') as _cf:
     _CORE = _cf.read()
 HTML_OUT = (HTML.replace('__DATA__', json.dumps(data, ensure_ascii=False, separators=(',', ':')))

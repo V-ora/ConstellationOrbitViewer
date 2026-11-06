@@ -128,6 +128,16 @@ for name, path in CHARTS:
     if "global.ChartCore" not in html:
         fail.append("%s：页面里没有内联 chart_core.js" % name)
 
+    # 7) 渲染骨架必须存在（2026-11-06：抽核心时误删曲线循环，图整个空白，
+    #    而旧版校验只看数据，完全没发现 ⇒ 现在静态检查绘制骨架）
+    skeleton = [("const order = DATA.sats.map", "曲线排序 order"),
+                ("s.p.length; k++", "曲线绘制主循环"),
+                ("bubble", "发射气泡层（若该图有）")]
+    missing = [d for k, d in skeleton[:-1] if k not in html]
+    print("  7) 绘制骨架齐全：%s" % ("是" if not missing else "缺 " + "、".join(missing)))
+    if missing:
+        fail.append("%s：绘制骨架缺失（%s）——图会画不出来" % (name, "、".join(missing)))
+
 print("\n" + "=" * 60)
 for w in warn:
     print("  ⚠ " + w)
