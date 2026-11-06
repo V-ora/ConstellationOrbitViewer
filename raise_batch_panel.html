@@ -197,6 +197,18 @@
       ctx.fillText('工作轨道 ' + s.target.toFixed(1) + ' km', L + 7, y - 3);
       ctx.textBaseline = 'middle';
     });
+    // ★ 2026-11-06：与大图一致，千帆的单独爬升图也画一条 1000 km 参考虚线
+    if (window.__REF1000__) {
+      var ry = Y(1000);
+      if (ry > T + 2 && ry < T + ph - 2) {
+        ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = '#9aa4b2'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(L, ry); ctx.lineTo(L + pw, ry); ctx.stroke(); ctx.restore();
+        ctx.fillStyle = '#8b96a6'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.font = '12px "Microsoft YaHei",sans-serif';
+        ctx.fillText('1000 km', L + 7, ry - 3);
+        ctx.textBaseline = 'middle';
+      }
+    }
     // 入轨点（每条的起点）
     S.forEach(function (s) {
       ctx.fillStyle = s.color;

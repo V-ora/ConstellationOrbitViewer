@@ -434,6 +434,21 @@ function draw() {
     ctx.fillStyle = c; ctx.font = 'bold 13px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
     ctx.fillText('工作轨道 ' + tg.toFixed(1) + ' km', R + 8, y - 3);
   });
+  // ★ 2026-11-06：用户要求加一条 1000 km 参考虚线（暂只千帆；灰细线，不与工作轨道争视觉）
+  (function () {
+    const REF = 1000;
+    if (REF < yMin - 25 || REF > yMax + 25) return;
+    const y = Y(REF);
+    ctx.save();
+    ctx.strokeStyle = '#9aa4b2'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#8b96a6'; ctx.font = '12px "Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('1000 km', R + 8, y - 3);
+    ctx.restore();
+  })();
+  window.__REF1000__ = true;      // 供「单独爬升图」面板判断是否也画这条线
 
   // 时间轴：跨度大用「月」刻度、小用「日」刻度。步长必须落在整月/整天上，
   // 并按像素间距去重——早前步长取 0.5「月」→ 月份索引变小数 → MON[0.5]=undefined，
