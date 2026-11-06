@@ -2,8 +2,6 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<script src="../../pages_shim.js"></script>
-
 <title>组次轨道爬升叠加图</title>
 <style>
   *{box-sizing:border-box}
@@ -165,6 +163,7 @@ function draw(){
     for (const p of s.pts){ if (p[1] < a0) a0 = p[1]; if (p[1] > a1) a1 = p[1]; }
   }
   for (const s of series) if (s.visible && s.target){ a0 = Math.min(a0, s.target); a1 = Math.max(a1, s.target); }
+  if (GROUP === "qianfan"){ a0 = Math.min(a0, 1000); a1 = Math.max(a1, 1000); }   // 1000 km 参考线要可见
   if (!isFinite(t0)) return;
   t1 = Math.max(t1, t0 + 1);
   const padY = Math.max((a1 - a0) * 0.12, 4);

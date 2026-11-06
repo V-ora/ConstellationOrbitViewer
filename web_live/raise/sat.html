@@ -135,6 +135,7 @@ function draw(){
   let a0 = Infinity, a1 = -Infinity;
   for (const p of pts){ if (p[1] < a0) a0 = p[1]; if (p[1] > a1) a1 = p[1]; }
   if (H.target){ a0 = Math.min(a0, H.target); a1 = Math.max(a1, H.target); }
+  if (H.src === "qianfan"){ a0 = Math.min(a0, 1000); a1 = Math.max(a1, 1000); }   // 1000 km 参考线要可见
   const padY = Math.max((a1 - a0) * 0.12, 4);
   a0 -= padY; a1 += padY;
   const X = t => g.L + (t - t0) / (t1 - t0) * g.pw;

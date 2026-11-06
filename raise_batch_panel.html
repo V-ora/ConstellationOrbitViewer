@@ -156,6 +156,9 @@
       s.pts.forEach(function (p) { a0 = Math.min(a0, p[1]); a1 = Math.max(a1, p[1]); });
       if (s.target) { a0 = Math.min(a0, s.target); a1 = Math.max(a1, s.target); }
     });
+    // ★ 2026-11-06：千帆要画 1000 km 参考线，轴范围必须把它包进来，
+    //   否则像极轨08组（1030~1077 km）这种全在 1000 以上的批次，线会落到可见区外。
+    if (window.__REF1000__) { a0 = Math.min(a0, 1000); a1 = Math.max(a1, 1000); }
     t1 = Math.max(t1, t0 + 1);
     var padY = Math.max((a1 - a0) * 0.10, 4);
     a0 -= padY; a1 += padY;
