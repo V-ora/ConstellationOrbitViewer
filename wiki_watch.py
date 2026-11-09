@@ -124,12 +124,14 @@ def main():
     for gk in PAGES:
         st = pages.get(gk) or {}
         watch = {cs: until for cs, until in (st.get("watch") or {}).items() if until > now}
-        last = float(st.get("last_check") or 0)
-        due_daily = (now - last) >= MIN_GAP
+        # ★ 门槛看"最后一次尝试"而不是"最后一次成功"：抓取失败也要等到下一轮，
+        #   否则每次开机都会连发请求（今天实测：失败后 12 小时门槛形同虚设）
+        last_try = float(st.get("last_attempt") or st.get("last_check") or 0)
+        due_daily = (now - last_try) >= MIN_GAP
         if args.force or due_daily or watch:
             plan.append((gk, bool(watch)))
         else:
-            skipped.append((gk, int((MIN_GAP - (now - last)) / 3600)))
+            skipped.append((gk, int((MIN_GAP - (now - last_try)) / 3600)))
 
     if args.if_watch and not any((pages.get(g) or {}).get("watch") for g in PAGES):
         print("没有处于观察期的批次，本轮不联网。")
@@ -167,7 +169,10 @@ def main():
             continue
         html = server.wiki_fetch_page(page)
         if not html:
-            print("  %s：抓取失败（保持原状态）" % gk)
+            st_fail = pages.get(gk) or {}
+            st_fail["last_attempt"] = now          # 失败也记时间，避免连发
+            pages[gk] = st_fail
+            print("  %s：抓取失败（保持原状态；下次尝试要等 %d 小时）" % (gk, MIN_GAP // 3600))
             continue
         parsed = (server.parse_wiki_launches(html) or {}).get(gk) or []
         h = rows_hash(parsed)
@@ -196,7 +201,7 @@ def main():
                     fix_total.append((cs, diff))
                     print("     修正 %s：%s" % (cs, "；".join("%s %r→%r" % d for d in diff)))
 
-        pages[gk] = {"hash": h, "last_check": now, "watch": watch,
+        pages[gk] = {"hash": h, "last_check": now, "last_attempt": now, "watch": watch,
                      "rows": [{k: r.get(k) for k in
                                ("cospar", "mission", "rocket", "time", "site", "dev")}
                               for r in parsed]}
