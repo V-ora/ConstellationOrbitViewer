@@ -327,7 +327,7 @@ DATA.launches.forEach(x => {
     '<td class="grp">' + x.grp + '</td><td class="num">' + x.bjt + '</td>' +
     '<td class="rk">' + x.rocket + '</td>' +
     '<td>' + x.site_s + '</td>' +
-    '<td class="c">' + x.n + '</td><td class="mono">' + (x.cospar || '—') + '</td>' +
+    '<td class="c">' + (x.n > 0 ? x.n : '<span style="color:#a05a44;font-size:12px">待编目</span>') + '</td><td class="mono">' + (x.cospar || '—') + '</td>' +
     '<td class="c">' + (x.plane || '—') + '</td>' +
     '<td>' + pills + '</td>';
   tr.addEventListener('mouseenter', () => { hoverLaunch = x.t; hoverCos = x.cospar || null; draw(); });

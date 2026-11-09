@@ -431,7 +431,8 @@ html = html[:i] + '<div class="cards">\n' + CARDS + '\n</div>\n\n' + html[j:]
 # ⑧ 发射表「卫星数」列：官方编目数 > 可画曲线数时补一个「/N」上标（见 n_all 的说明）。
 #    ★ 2026-10-15：星网低轨27组一箭九星，但官方只发布了 7 颗的根数 ⇒ 显示「7/9」。
 old = ("    '<td class=\"c\">' + x.n + '</td><td class=\"mono\">' + (x.cospar || '—') + '</td>' +")
-new = ("    '<td class=\"c\">' + x.n + (x.na && x.na > x.n\n"
+new = ("    '<td class=\"c\">' + (x.n > 0 ? x.n : "
+       "'<span style=\"color:#a05a44;font-size:12px\">待编目</span>') + (x.na && x.na > x.n\n"
        "      ? '<sup style=\"color:#c9701a;font-weight:700;margin-left:1px;cursor:help\" title=\"'\n"
        "        + '官方编目 ' + x.na + ' 颗；其中 ' + x.n + ' 颗已发布根数（能画曲线），'\n"
        "        + (x.na - x.n) + ' 颗至今没有任何 GP 根数（官方尚未发布）\">/' + x.na + '</sup>'\n"
