@@ -14,6 +14,7 @@ import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 AUTO_FP = os.path.join(HERE, "cache", "launches_auto.json")
+DERIVED_FP = os.path.join(HERE, "cache", "launches_derived.json")  # 自动识别的新批次占位
 
 
 def norm_rocket(s):
@@ -25,16 +26,34 @@ def norm_rocket(s):
 
 
 def load_merged(group_key, hand_fp):
+    # 三层优先级（低 → 高）：自动识别占位 < 卫星百科同步 < 人工表
+    #   · derived：enroll_new_batches.py 发现的新批次（只有 cospar/日期是确定的）
+    #   · auto   ：卫星百科任务表（有组次/火箭/场站，覆盖 derived 的空字段）
+    #   · hand   ：人工核对过的表（最高）
     out = {}
+    try:
+        with open(DERIVED_FP, encoding="utf-8") as f:
+            derived = (json.load(f) or {}).get(group_key) or []
+    except Exception:
+        derived = []
     try:
         with open(AUTO_FP, encoding="utf-8") as f:
             auto = (json.load(f) or {}).get(group_key) or []
     except Exception:
         auto = []
-    for r in auto:
+    for r in derived:
         k = (r.get("cospar") or "")[:8]
         if k:
             out[k] = dict(r)
+    for r in auto:
+        k = (r.get("cospar") or "")[:8]
+        if not k:
+            continue
+        base = out.get(k) or {}
+        for kk, vv in r.items():
+            if vv:
+                base[kk] = vv
+        out[k] = base
     try:
         with open(hand_fp, encoding="utf-8") as f:
             hand = json.load(f) or []

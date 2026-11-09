@@ -69,7 +69,9 @@ for catnr, e in H['sats'].items():
         reach_days = (dt.date.fromisoformat(arrive) - dt.date.fromisoformat(e.get('launch') or '1970-01-01')).days
     sats.append(dict(
         n=e['name'], c=catnr, l=e.get('launch') or '',
-        cs=(re.match(r'(\d{4}-\d+)', (m.get('intl') or '')) or [None, ''])[1],
+        # cs：优先取分析表的 intl；分析表没收录的新批次（自动入册）退回 sat_hist 里的 cospar
+        cs=((re.match(r'(\d{4}-\d+)', (m.get('intl') or '')) or [None, ''])[1]
+            or (e.get('cospar') or '')[:8]),
         t=TARGET, f=round(pts[0][1], 1), a=round(cur, 1),
         d=arrive or '-', k=reach_days, inc=m.get('inc'),
         ides=m.get('intl', ''), st=st, p=pts))
@@ -112,7 +114,8 @@ for m in sorted(LA, key=lambda x: x['time']):
     for x in grp_sats:
         cnts[x['st']] = cnts.get(x['st'], 0) + 1
     launch_list.append(dict(
-        grp=m['group'], lv=m['rocket'].split(' 遥')[0], sn='遥' + m['rocket'].split(' 遥')[-1] if ' 遥' in m['rocket'] else '',
+        grp=m['group'], lv=(m['rocket'].split(' 遥')[0] or '待补'),
+        sn=('遥' + m['rocket'].split(' 遥')[-1]) if ' 遥' in m['rocket'] else '',
         up='', site=m['site'], pad='', date=d, bjt=m['time'],
         t=(dt.date.fromisoformat(d) - BASE0).days, n=len(grp_sats),
         plane=m.get('plane', '—'), cospar=m.get('cospar', '—'),
@@ -132,7 +135,7 @@ for x in launch_list:
 
 rocket_stat = {}
 for x in launch_list:
-    lv = launch_table.model_of(x['rocket'])
+    lv = (launch_table.model_of(x.get('lv') or x.get('rocket') or '') or '待补')
     rocket_stat[lv] = rocket_stat.get(lv, 0) + 1
 
 status_cnt = {}
