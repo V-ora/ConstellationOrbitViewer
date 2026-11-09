@@ -650,7 +650,7 @@ def build_opener(proxy=None):
     return urllib.request.build_opener(*handlers)
 
 
-def http_get(url, proxy=None, timeout=25, opener=None, retries=3):
+def http_get(url, proxy=None, timeout=25, opener=None, retries=3, headers=None):
     """返回 bytes；失败抛异常。proxy=None 且 opener=None 时表示直连。
 
     走代理访问 celestrak 时偶发 502/超时是常态（尤其国内网络），所以默认带
@@ -660,12 +660,15 @@ def http_get(url, proxy=None, timeout=25, opener=None, retries=3):
     for i in range(max(1, retries)):
         try:
             op = opener or build_opener(proxy)
-            req = urllib.request.Request(url, headers={
+            hdr = {
                 "User-Agent": UA,
                 "Accept": "*/*",
                 "Accept-Encoding": "identity",
                 "Connection": "close",
-            })
+            }
+            if headers:
+                hdr.update(headers)
+            req = urllib.request.Request(url, headers=hdr)
             with op.open(req, timeout=timeout) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
@@ -1945,11 +1948,22 @@ def wiki_fetch_page(page, net=None, timeout=30):
         return None
     u = ("https://sat.huijiwiki.com/api.php?action=parse&page=%s"
          "&format=json&prop=text" % page)
-    cands = proxy_probe_candidates(net)
+    # ★ 2026-11-06：直连 403 的真因不是"墙"，是**请求头太裸**被 Cloudflare 反爬拦下。
+    #   实测：同一个 URL，带浏览器 UA + Accept: application/json 直连 → 200（36 KB JSON）；
+    #   只给 UA: ConstellationOrbitViewer → 403 + 「请稍候…」人机校验页。
+    #   所以先试直连（浏览器头），不行再走代理候选；顺序反过来会白等 40 多个端口。
+    WIKI_HDR = {
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+        "Accept": "application/json,text/html;q=0.9",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    }
+    cands = [None] + [c for c in proxy_probe_candidates(net) if c]
     for p in cands:
         try:
             # 探测用短超时：可用代理 ~0.3 s 回，非代理端口立刻失败，不会拖时间
-            raw = http_get(u, proxy=p, timeout=min(timeout, 10), retries=1)
+            raw = http_get(u, proxy=p, timeout=min(timeout, 20), retries=1,
+                           headers=WIKI_HDR)
             j = json.loads(raw.decode("utf-8", "replace"))
             html = (j.get("parse") or {}).get("text") or {}
             if isinstance(html, dict):

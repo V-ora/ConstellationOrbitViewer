@@ -191,10 +191,15 @@ def main():
             cs = (r.get("cospar") or "")[:8]
             if cs:
                 known.add(cs)
-        for r in derived.get(gk) or []:
-            cs = (r.get("cospar") or "")[:8]
-            if cs:
-                known.add(cs)
+        # ★ 2026-11-06：只有**历史库里真有这个批次的星**才算已入册。
+        #   光有发射行（手工/百科/派生）不算 —— 否则「表里有、图里 0 颗」永远补不上。
+        #   例：低轨29组(2026-253) 卫星百科已记录，但 CelesTrak 还没编目，
+        #   等上游出现物体后本脚本会自动播种；之前因为"表里有"而永久跳过。
+        hist_cos = set()
+        for _k, _v in hsats.items():
+            if isinstance(_v, dict) and _v.get("cospar"):
+                hist_cos.add(_v["cospar"][:8])
+        known = hist_cos
 
         # 按 COSPAR 前缀分组
         by_pre = {}
@@ -204,6 +209,15 @@ def main():
                 continue
             pre = "%04d-%03d" % (d.year, d.timetuple().tm_yday)
             by_pre.setdefault(pre, []).append(r)
+
+        # ★ 无论新旧，先把 canpos 补到历史点里（老数据没有这个字段，
+        #   补齐后 check_charts 的「按 cospar 归属」和出图的 cs 兜底才可靠）
+        for pre, sats in by_pre.items():
+            for s in sats:
+                e = hsats.get(s["norad"])
+                if isinstance(e, dict) and not e.get("cospar"):
+                    e["cospar"] = pre
+                    _changed[0] = True
 
         new_here = 0
         for pre, sats in sorted(by_pre.items()):

@@ -60,14 +60,20 @@ for name, path in CHARTS:
     for s in sats:
         by_cs.setdefault(s.get("cs"), []).append(s)
     mism = []
+    pending = []
     for x in launches:
         cs = x.get("cospar") or ""
         got = len(by_cs.get(cs, [])) if cs and cs != "—" else 0
         if got == 0:
-            mism.append("%s(%s) 匹配 0 颗，表里写 n=%s" % (x.get("grp"), cs, x.get("n")))
+            # ★ 2026-11-06：表里有、星没有，是合法过渡态（刚发射、上游还没编目）。
+            #   例：低轨29组(2026-253) 卫星百科已记录，CelesTrak 连 satcat 都还没有。
+            #   这种情况只提示，不判失败；等上游编目后 enroll_new_batches 会自动播种。
+            pending.append("%s(%s)：尚未编目（上游还没有物体）" % (x.get("grp"), cs))
         elif x.get("n") is not None and got != x.get("n"):
             mism.append("%s(%s) 表里 n=%s 实际 %d 颗" % (x.get("grp"), cs, x.get("n"), got))
-    print("  2/3) 发射↔卫星 匹配异常：%d" % len(mism))
+    print("  2/3) 发射↔卫星 匹配异常：%d（其中待编目 %d）" % (len(mism), len(pending)))
+    for m in pending[:6]:
+        print("       · 待编目：" + m)
     for m in mism[:6]:
         print("       -", m)
     if mism:
