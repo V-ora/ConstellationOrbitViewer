@@ -1,0 +1,23 @@
+{
+ "ts": "2026-11-09T07:47:42Z",
+ "method": "cookie-session(warm-up GET / → api.php)",
+ "host": "sat.huijiwiki.com",
+ "pages": {
+  "qianfan": {
+   "ok": false,
+   "http": 403,
+   "secs": 0.0,
+   "page": "千帆星座"
+  },
+  "gw": {
+   "ok": false,
+   "http": 403,
+   "secs": 0.1,
+   "page": "星网"
+  }
+ },
+ "ok": false,
+ "cookies": [
+  "__cf_bm"
+ ]
+}

@@ -1934,6 +1934,53 @@ def parse_wiki_launches(html):
 
 _wiki_route = {"proxy": "<未定>", "t": 0.0}
 _WIKI_BLOCKED = {"until": 0.0}     # 整轮全失败后的退避（秒）
+WIKI_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+           "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
+
+_WIKI_LAST = {"t": 0.0}
+
+
+def _wiki_gap(gap=12.0):
+    """两次卫星百科请求之间至少隔 gap 秒（该站限流明显，密了直接 403）。"""
+    wait = gap - (time.time() - _WIKI_LAST["t"])
+    if wait > 0:
+        time.sleep(min(wait, gap))
+    _WIKI_LAST["t"] = time.time()
+
+
+_WIKI_JAR = {"op": None, "t": 0.0}
+
+
+def _wiki_opener(warm=True):
+    """返回一个**带 cookie 罐**的 opener，并做一次热身（GET 首页领 __cf_bm）。
+
+    为什么需要：直连 api.php 时有时 200、有时 403（0 字节）。实测发现
+    GET / 虽然回 403 挑战页，但会 Set-Cookie: __cf_bm；带着这个 cookie
+    再请求 api.php 就是 200。热身结果缓存 30 分钟。
+    """
+    now = time.time()
+    op = _WIKI_JAR["op"]
+    if op is not None and now - _WIKI_JAR["t"] < 1800:
+        return op
+    import http.cookiejar
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        urllib.request.HTTPCookieProcessor(cj),
+    )
+    if warm:
+        try:
+            op.open(urllib.request.Request(
+                "https://sat.huijiwiki.com/",
+                headers={"User-Agent": WIKI_UA, "Accept-Language": "zh-CN,zh;q=0.9",
+                         "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}),
+                timeout=15).read()
+        except Exception:
+            pass          # 403 也照收 cookie，这里不求成功
+    _WIKI_JAR["op"] = op
+    _WIKI_JAR["t"] = now
+    return op
 
 
 def wiki_fetch_page(page, net=None, timeout=30):
@@ -1958,6 +2005,54 @@ def wiki_fetch_page(page, net=None, timeout=30):
         "Accept": "application/json,text/html;q=0.9",
         "Accept-Language": "zh-CN,zh;q=0.9",
     }
+    # ★ 2026-11-09：先用带 cookie 的会话直连（最稳），失败再枚举本地代理。
+    #   实测该站有**限流**：连发几次就开始 403（0 字节）。所以：
+    #     ① 页间至少 12 秒（下面 _wiki_gap 控制）
+    #     ② 403 时退避 20 秒、重新热身再试（最多 3 轮）
+    #     ③ 仍失败则用磁盘缓存（cache/wiki_<key>.html），保证任务表不凭空消失
+    cache_fp = os.path.join(CACHE_DIR, "wiki_%s.html" % re.sub(r"[^A-Za-z0-9]+", "_", page)[:24])
+    _wiki_gap(12.0)
+    last_err = None
+    for attempt in range(1):        # ★ 只试一次：被限流时重试只会拉长封禁
+        try:
+            op2 = _wiki_opener(warm=(attempt > 0))
+            req2 = urllib.request.Request(u, headers={
+                "User-Agent": WIKI_UA,
+                "Accept": "application/json,text/html;q=0.9",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+                "Referer": "https://sat.huijiwiki.com/wiki/" + urllib.parse.quote(page, safe="%"),
+            })
+            raw2 = op2.open(req2, timeout=min(timeout, 25)).read()
+            j2 = json.loads(raw2.decode("utf-8", "replace"))
+            html2 = (j2.get("parse") or {}).get("text") or {}
+            if isinstance(html2, dict):
+                html2 = html2.get("*") or ""
+            if html2:
+                if _wiki_route["proxy"] != "cookie":
+                    _wiki_route.update({"proxy": "cookie", "t": time.time()})
+                try:                      # 缓存一份，供限流时兜底
+                    with open(cache_fp, "w", encoding="utf-8") as f:
+                        f.write(html2)
+                except Exception:
+                    pass
+                return html2
+        except Exception as e:
+            last_err = e
+            _WIKI_JAR["t"] = 0.0          # 下一轮重新热身拿 cookie
+            _WIKI_BLOCKED["until"] = time.time() + 600   # 403 后至少休息 10 分钟
+    # 退路：磁盘缓存（哪怕旧，也比"沿用旧表"踏实——至少文件是我们自己存的）
+    try:
+        if os.path.isfile(cache_fp):
+            with open(cache_fp, encoding="utf-8") as f:
+                cached = f.read()
+            if cached:
+                log("卫星百科取数失败（%s），改用本地缓存 %s" % (last_err, os.path.basename(cache_fp)))
+                return cached
+    except Exception:
+        pass
+    if last_err:
+        log("卫星百科 cookie 会话失败，转代理枚举：%s" % last_err)
+
     cands = [None] + [c for c in proxy_probe_candidates(net) if c]
     for p in cands:
         try:
@@ -1978,8 +2073,8 @@ def wiki_fetch_page(page, net=None, timeout=30):
                 return html
         except Exception:
             continue
-    _WIKI_BLOCKED["until"] = time.time() + 1800
-    log("卫星百科：%d 个候选出口全部失败（含本机 %d 个监听端口），30 分钟后退避"
+    _WIKI_BLOCKED["until"] = time.time() + 300
+    log("卫星百科：%d 个候选出口全部失败（含本机 %d 个监听端口），5 分钟后退避"
         % (len(cands), len(localhost_ports())))
     return None
 
