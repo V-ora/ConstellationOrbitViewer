@@ -40,36 +40,40 @@ jobs:
       #      历史/大图没更新，至少根数（下一步）还能刷新。失败原因在 Actions 日志里能看到。
 
 
-      - name: 1/8 数据源可达性探测（写 cache/sources_status.json）
+      - name: 1/9 数据源可达性探测（写 cache/sources_status.json）
         continue-on-error: true
         run: python probe_sources.py
 
-      - name: 2/8 新批次自动入册（扫上游发现未登记的 COSPAR）
+      - name: 2/9 新批次自动入册（扫上游发现未登记的 COSPAR）
         continue-on-error: true
         run: python enroll_new_batches.py
 
-      - name: 3/8 追平逐日历史末点
+      - name: 3/9 用 GCAT 补全发射口径（组次/火箭/场站/时刻）
+        continue-on-error: true
+        run: python fill_from_gcat.py
+
+      - name: 4/9 追平逐日历史末点
         continue-on-error: true
         run: python local_backfill.py
 
-      - name: 4/8 回填逐日历史缺口（只补缺数据的星）
+      - name: 5/9 回填逐日历史缺口（只补缺数据的星）
         continue-on-error: true
         run: python backfill_hist_missing.py --max-age 3 --limit 120
 
-      - name: 5/8 重生成千帆爬升大图
+      - name: 6/9 重生成千帆爬升大图
         continue-on-error: true
         run: python make_qf_html.py
 
-      - name: 6/8 重生成中国星网爬升大图
+      - name: 7/9 重生成中国星网爬升大图
         continue-on-error: true
         run: python make_gw_html.py
 
       # ---- 核心：重新抓 TLE 并烘出 docs/ 快照（这一步失败就整体失败，因为没有新数据可发）
-      - name: 7/8 校验两张爬升大图的数据一致性（发射↔卫星归属）
+      - name: 8/9 校验两张爬升大图的数据一致性（发射↔卫星归属）
         continue-on-error: true
         run: python check_charts.py
 
-      - name: 8/8 重新生成静态站 docs/
+      - name: 9/9 重新生成静态站 docs/
         run: python build_pages.py
 
       - name: 提交并推送
