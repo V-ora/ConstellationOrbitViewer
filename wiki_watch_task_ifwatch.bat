@@ -1,2 +1,2 @@
 @echo off
-call "D:\Work Buddy ???\?????????\wiki_watch_task.bat" --if-watch
+call "%~dp0wiki_watch_task.bat" --if-watch
