@@ -1,17 +1,1 @@
-{
- "qianfan": [
-  {
-   "cospar": "2026-248",
-   "mission": "",
-   "rocket": "",
-   "time": "2026-11-03 00:00",
-   "site": "",
-   "orbit": "",
-   "dev": "",
-   "derived": true,
-   "derived_name": "QIANFAN 17",
-   "derived_from": "CelesTrak 最新",
-   "group": "QIANFAN 17"
-  }
- ]
-}
+{"qianfan": [{"cospar": "2026-248", "mission": "", "rocket": "", "time": "2026-11-03 00:00", "site": "", "orbit": "", "dev": "", "derived": true, "derived_name": "QIANFAN 17", "derived_from": "CelesTrak 最新", "group": "QIANFAN 17"}]}
