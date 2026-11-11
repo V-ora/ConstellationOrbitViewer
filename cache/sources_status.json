@@ -1,10 +1,10 @@
 {
- "ts": "2026-11-10T19:34:56Z",
+ "ts": "2026-11-11T05:46:35Z",
  "sources": {
   "huijiwiki": {
    "ok": false,
    "http": 403,
-   "secs": 0.3,
+   "secs": 0.1,
    "url": "https://sat.huijiwiki.com/api.php?action=query&meta=siteinfo&format=json"
   },
   "zh_wikipedia": {
@@ -19,16 +19,16 @@
    "ok": true,
    "http": 200,
    "bytes": 13816039,
-   "secs": 0.7,
+   "secs": 0.9,
    "sample": "#Launch_Tag\tLaunch_JD\tLaunch_Date\tLV_Type\tVariant\tFairing\tFlight_ID\tFlight\tMission\tFlightCode\tPlatform\tLaunch_Site\tLaunc",
    "url": "https://planet4589.org/space/gcat/tsv/launch/launch.tsv"
   },
   "jina_wiki": {
    "ok": true,
    "http": 200,
-   "bytes": 505,
-   "secs": 3.3,
-   "sample": "Title: Just a moment...  URL Source: https://sat.huijiwiki.com/wiki/%E5%8D%83%E5%B8%86%E6%98%9F%E5%BA%A7  Warning: This ",
+   "bytes": 540,
+   "secs": 1.6,
+   "sample": "Title: Just a moment...  URL Source: https://sat.huijiwiki.com/wiki/%E5%8D%83%E5%B8%86%E6%98%9F%E5%BA%A7  Warning: Targe",
    "url": "https://r.jina.ai/https://sat.huijiwiki.com/wiki/%E5%8D%83%E5%B8%86%E6%98%9F%E5%BA%A7"
   }
  },
