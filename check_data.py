@@ -119,6 +119,8 @@ def offline():
             # 千帆图里的 s 是「状态索引」（0=已就位/1=其它），不是壳层，跳过壳层校验
             ok("B %s 无壳层概念（s=状态索引），跳过" % gk)
             continue
+        # 注：这里的 inc 是出图时按壳层兜底算出来的，**存在循环自证**，
+        # 只作为自洽检查；真正的判定在在线层 B'（以上游倾角为基准）。
         wrong = []
         for s in D.get("sats") or []:
             inc = s.get("inc")
@@ -161,9 +163,21 @@ def offline():
 
 
 def online():
+    """用 CelesTrak 组接口做**外部基准**：
+       · A3 上游有、本地没有的 NORAD → 硬失败（漏星）
+       · A3b 同一批次的颗数不一致 → 硬失败
+       · B'  国网壳层必须与**上游倾角**一致（不能用图里反推的 inc，那是循环自证）
+    """
     hist = read_json(os.path.join(DATA, "sat_hist.json"), {})
-    known = {str(k): (v.get("cospar") or "")[:8] for k, v in (hist.get("sats") or {}).items()}
-    print("\n[在线] 与 CelesTrak 组接口比对（上游有、本地没有 = 漏星）")
+    sats = hist.get("sats") or {}
+    local_by_cos, known = {}, set()
+    for k, v in sats.items():
+        known.add(str(k))
+        cs = (v.get("cospar") or "")[:8]
+        if cs:
+            local_by_cos.setdefault(cs, set()).add(str(k))
+
+    print("\n[在线] 以 CelesTrak 组接口为基准（漏星 / 颗数 / 倾角 vs 壳层）")
     for gk, url in GP_URL.items():
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -172,22 +186,66 @@ def online():
         except Exception as e:
             warn("A3 %s 查询失败（跳过在线比对）：%s" % (gk, type(e).__name__))
             continue
-        up = {}
+
+        up_by_cos, up_inc = {}, {}
         for x in arr:
             n = str(x.get("NORAD_CAT_ID") or "").strip()
             cs = (x.get("OBJECT_ID") or "")[:8]
-            if n and cs:
-                up.setdefault(cs, []).append(n)
-        missing_total = 0
-        for cs, norads in up.items():
-            miss = [n for n in norads if n not in known]
+            if not n or not cs:
+                continue
+            up_by_cos.setdefault(cs, set()).add(n)
+            try:
+                up_inc[n] = float(x.get("INCLINATION") or 0)
+            except Exception:
+                pass
+
+        # A3 漏星（逐颗）
+        missing = 0
+        for cs, norads in sorted(up_by_cos.items()):
+            miss = sorted(norads - local_by_cos.get(cs, set()))
             if miss:
-                missing_total += len(miss)
-                bad("A3 %s：上游有 %d 颗本地没有（%s → %s）"
-                    % (cs, len(miss), gk, ", ".join(miss[:4])))
-        if not missing_total:
-            ok("A3 %s：上游 %d 个批次、%d 颗，本地全部覆盖"
-               % (gk, len(up), sum(len(v) for v in up.values())))
+                missing += len(miss)
+                bad("A3 %s：上游 %s 有 %d 颗本地没有（NORAD %s）"
+                    % (cs, gk, len(miss), ", ".join(miss[:4])))
+        if not missing:
+            ok("A3 %s：上游 %d 个批次 / %d 颗，逐颗覆盖齐全"
+               % (gk, len(up_by_cos), sum(len(v) for v in up_by_cos.values())))
+
+        # A3b 颗数（本地多出的是已再入的星，允许；本地少于上游 = 硬失败）
+        short = 0
+        for cs, norads in sorted(up_by_cos.items()):
+            loc = local_by_cos.get(cs, set())
+            if len(loc) < len(norads):
+                short += 1
+                if len(loc) and cs not in [m for m in ()]:
+                    pass
+        if short and not missing:
+            bad("A3b %s：%d 个批次本地颗数少于上游" % (gk, short))
+        elif not short:
+            ok("A3b %s：各批次颗数不少于上游" % gk)
+
+        # B' 壳层 vs 上游倾角（只对国网）
+        if gk == "gw":
+            D = load_chart_data(CHARTS["gw"])
+            if not D:
+                warn("B' 国网出图数据读不到，跳过壳层校验")
+                continue
+            wrong = []
+            for s in D.get("sats") or []:
+                n = str(s.get("c") or "")
+                inc = up_inc.get(n)
+                if inc is None:
+                    continue
+                expect = 0 if inc < 60 else 1
+                if s.get("s") != expect:
+                    wrong.append("%s(上游倾角 %.1f°，图里标 %s)"
+                                 % (s.get("n"), inc, "86.5°" if s.get("s") == 1 else "50°"))
+            if wrong:
+                bad("B' 国网：%d 颗壳层与上游倾角不符（例：%s）"
+                    % (len(wrong), "；".join(wrong[:3])))
+            else:
+                ok("B' 国网：壳层与上游倾角一致（%d 颗已核）"
+                   % sum(1 for s in (D.get("sats") or []) if str(s.get("c")) in up_inc))
 
 
 def main():
