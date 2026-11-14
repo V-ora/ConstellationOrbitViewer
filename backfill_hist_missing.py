@@ -117,6 +117,11 @@ def main():
     do_all = "--all" in sys.argv
     max_age = float(arg("--max-age", 3))
     limit = int(arg("--limit", 400))
+    # ★ 2026-11-14：--min-pts N 只补"点数不足 N"的星。
+    #   背景：默认判据会把"末点很久没更新"的老星排在前面，新批次（只有 1 个点）
+    #   反而抢不到配额，于是图上永远是一个点。
+    min_pts = int(arg("--min-pts", 0))
+    only_cospar = (arg("--cospar", "") or "").strip()
 
     hist = json.load(io.open(FP, encoding="utf-8"))
     sats = hist["sats"]
@@ -129,12 +134,18 @@ def main():
         if do_all:
             targets.append(n)
             continue
+        if only_cospar and (e.get("cospar") or "")[:8] != only_cospar:
+            continue
+        if min_pts and len(pts) >= min_pts:
+            continue
         if len(pts) < 2:
             targets.append(n)
             continue
         last = BASE_DATE + datetime.timedelta(days=float(pts[-1][0]))
         if (today - last).days > max_age:
             targets.append(n)
+    # 点数少的排前面（新批次优先），再按 NORAD 稳定排序
+    targets.sort(key=lambda n: (len(sats[n].get("pts") or []), n))
     targets = targets[:limit]
     print("待回填 %d 颗（库内共 %d 颗；判据：点数<2 或末点 >%.0f 天）"
           % (len(targets), len(sats), max_age), flush=True)

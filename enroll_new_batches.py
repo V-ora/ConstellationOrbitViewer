@@ -70,6 +70,22 @@ def alt_from_mm(mm):
         return None
 
 
+def _point_day(s, today):
+    """播种点落在哪一天：优先用根数历元(UTC)，且绝不晚于 today（防止出现"未来点"）。"""
+    import datetime
+    ep = (s.get("epoch") or "")[:10]
+    d = None
+    if ep:
+        try:
+            d = datetime.date.fromisoformat(ep)
+        except Exception:
+            d = None
+    if d is None:
+        d = datetime.date.today()
+    day = day_index(d)
+    return float(min(day, today))
+
+
 def _shell_of(src, inc):
     """按倾角给壳层标签（出图脚本靠字符串里的 '50'/'86' 判壳层）。"""
     try:
@@ -169,7 +185,8 @@ def fetch_rows(group):
                          "norad": str(x.get("NORAD_CAT_ID") or "").strip(),
                          "intdes": oid,
                          "alt": alt_from_mm(mm),
-                         "inc": inc})
+                         "inc": inc,
+                         "epoch": (x.get("EPOCH") or "").strip()})
         if rows:
             return rows, "CelesTrak 最新"
     except Exception as e:
@@ -259,7 +276,7 @@ def main():
                     "launch": d_pre.isoformat(),
                     "target": cfg["target"],
                     "status": "",
-                    "pts": [[float(today), s["alt"]]] if s["alt"] else [],
+                    "pts": [[_point_day(s, today), s["alt"]]] if s["alt"] else [],
                 }
                 seeded += 1
                 print("  ~ %s 补种卫星 %s %s（%s）" % (gk, s["norad"], s["name"][:26], pre))
@@ -310,7 +327,7 @@ def main():
                     "launch": d.isoformat(),
                     "target": cfg["target"],
                     "status": "",
-                    "pts": [[float(today), s["alt"]]] if s["alt"] else [],
+                    "pts": [[_point_day(s, today), s["alt"]]] if s["alt"] else [],
                 }
             new_here += 1
             print("  + %s 新批次 %s：%d 颗（%s …）" % (gk, pre, len(sats), sats[0]["name"][:22]))
