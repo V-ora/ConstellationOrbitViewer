@@ -70,6 +70,21 @@ def alt_from_mm(mm):
         return None
 
 
+def _shell_of(src, inc):
+    """按倾角给壳层标签（出图脚本靠字符串里的 '50'/'86' 判壳层）。"""
+    try:
+        inc = float(inc or 0)
+    except Exception:
+        inc = 0.0
+    if src == "gw":
+        if inc and inc < 60:
+            return "50°倾角壳层"
+        if inc:
+            return "86.5°倾角壳层"
+        return None
+    return None
+
+
 def intdes_to_date(s):
     """'26061A' → 2026-03-02（UTC 发射日）。TLE 里 intdes 是 8 列：YYNNNPPP。"""
     import datetime
@@ -146,10 +161,15 @@ def fetch_rows(group):
                 mm = 0
             if not oid:
                 continue
+            try:
+                inc = float(x.get("INCLINATION") or 0)
+            except Exception:
+                inc = 0.0
             rows.append({"name": (x.get("OBJECT_NAME") or "").strip(),
                          "norad": str(x.get("NORAD_CAT_ID") or "").strip(),
                          "intdes": oid,
-                         "alt": alt_from_mm(mm)})
+                         "alt": alt_from_mm(mm),
+                         "inc": inc})
         if rows:
             return rows, "CelesTrak 最新"
     except Exception as e:
@@ -219,6 +239,33 @@ def main():
                     e["cospar"] = pre
                     _changed[0] = True
 
+        # ★ 2026-11-10：先做一轮**按卫星**补种。
+        #   原来只看"批次是否已登记"，导致同一批次后来补编目的卫星永远进不来
+        #   （低轨29组 2026-253 就是 8 颗先编目、第 9 颗 DIGUI-240 后补，结果一直缺一颗）。
+        seeded = 0
+        for pre, sats in by_pre.items():
+            d_pre = None
+            for s in sats:
+                if s["norad"] in hsats:
+                    continue
+                if d_pre is None:
+                    d_pre = satcat_launch_date(pre) or intdes_to_date(s["intdes"]) or \
+                        __import__("datetime").date.today()
+                hsats[s["norad"]] = {
+                    "name": s["name"],
+                    "src": cfg["src"],
+                    "cospar": pre,
+                    "shell": _shell_of(cfg["src"], s.get("inc")),
+                    "launch": d_pre.isoformat(),
+                    "target": cfg["target"],
+                    "status": "",
+                    "pts": [[float(today), s["alt"]]] if s["alt"] else [],
+                }
+                seeded += 1
+                print("  ~ %s 补种卫星 %s %s（%s）" % (gk, s["norad"], s["name"][:26], pre))
+        if seeded:
+            _changed[0] = True
+
         new_here = 0
         for pre, sats in sorted(by_pre.items()):
             if pre in known:
@@ -259,7 +306,7 @@ def main():
                     "name": s["name"],
                     "src": cfg["src"],
                     "cospar": pre,
-                    "shell": None,
+                    "shell": _shell_of(cfg["src"], s.get("inc")),
                     "launch": d.isoformat(),
                     "target": cfg["target"],
                     "status": "",

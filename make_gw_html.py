@@ -136,7 +136,18 @@ for norad, e in H['sats'].items():
         pts = [pts[int(i * step)] for i in range(MAXPTS)] + [pts[-1]]
     cur = pts[-1][1]
     tgt = float(e.get('target') or 0)
-    shell = 0 if '50' in (e.get('shell') or '') else 1
+    # ★ 2026-11-10：壳层不能只看 sat_hist 里的字符串。新入册的批次（如低轨29组
+    #   2026-253）种子数据里 shell 为空，会被一律当成 86.5° 壳层 —— 而它的真实倾角是 50°，
+    #   于是出现「倾角 50 却显示 86.5° 壳层」。这里改成：字符串有就按字符串，
+    #   没有就按真实倾角分（<60° → 50° 壳层）。
+    _shs = e.get('shell') or ''
+    if '50' in _shs:
+        shell = 0
+    elif '86' in _shs:
+        shell = 1
+    else:
+        _iv = INCL.get(norad)
+        shell = 0 if (_iv is not None and _iv < 60) else 1
     if not tgt:
         tgt = T50 if shell == 0 else T86
     gap = tgt - cur
@@ -184,7 +195,7 @@ for norad, e in H['sats'].items():
         l=e.get('launch') or '', t=tgt, f=round(pts[0][1], 1), a=round(cur, 1),
         d=d, k=k, inc=round(inc, 2),
         ides=m.get('cospar') or '', st=st,
-        cs=((m.get('cospar') or '')[:8]) or (e.get('launch') or ''),
+        cs=((m.get('cospar') or '')[:8]) or ((e.get('cospar') or '')[:8]) or (e.get('launch') or ''),
         p=[[round(tt - SHIFT, 6), a2] for tt, a2 in pts]))
 
 n_total = len(sats)
