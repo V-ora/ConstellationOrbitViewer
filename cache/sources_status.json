@@ -1,5 +1,5 @@
 {
- "ts": "2026-11-19T20:23:01Z",
+ "ts": "2026-11-20T06:50:53Z",
  "sources": {
   "huijiwiki": {
    "ok": false,
@@ -11,23 +11,23 @@
    "ok": true,
    "http": 200,
    "bytes": 9930,
-   "secs": 0.3,
-   "sample": "{\"batchcomplete\":\"\",\"continue\":{\"sroffset\":10,\"continue\":\"-||\"},\"query\":{\"searchinfo\":{\"totalhits\":9089},\"search\":[{\"ns\"",
+   "secs": 0.2,
+   "sample": "{\"batchcomplete\":\"\",\"continue\":{\"sroffset\":10,\"continue\":\"-||\"},\"query\":{\"searchinfo\":{\"totalhits\":9090},\"search\":[{\"ns\"",
    "url": "https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=%E5%8D%83%E5%B8%86&format=json"
   },
   "gcat_launch": {
    "ok": true,
    "http": 200,
    "bytes": 13817950,
-   "secs": 2.4,
+   "secs": 0.3,
    "sample": "#Launch_Tag\tLaunch_JD\tLaunch_Date\tLV_Type\tVariant\tFairing\tFlight_ID\tFlight\tMission\tFlightCode\tPlatform\tLaunch_Site\tLaunc",
    "url": "https://planet4589.org/space/gcat/tsv/launch/launch.tsv"
   },
   "jina_wiki": {
    "ok": true,
    "http": 200,
-   "bytes": 505,
-   "secs": 3.5,
+   "bytes": 591,
+   "secs": 2.6,
    "sample": "Title: Just a moment...  URL Source: https://sat.huijiwiki.com/wiki/%E5%8D%83%E5%B8%86%E6%98%9F%E5%BA%A7  Warning: This ",
    "url": "https://r.jina.ai/https://sat.huijiwiki.com/wiki/%E5%8D%83%E5%B8%86%E6%98%9F%E5%BA%A7"
   }
