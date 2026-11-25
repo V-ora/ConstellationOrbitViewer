@@ -186,12 +186,12 @@ def main():
                 print("  + %s %-22s 补 %d 点（共 %d 点）"
                       % (n, (sats[n].get("name") or "")[:22], added, len(sats[n]["pts"])), flush=True)
             if done % 25 == 0 and not dry:
-                hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
                 json.dump(hist, io.open(FP, "w", encoding="utf-8", newline="\n"), ensure_ascii=False)
                 print("  …已落盘（%d/%d）" % (done, len(targets)), flush=True)
 
     if not dry:
-        hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
         json.dump(hist, io.open(FP, "w", encoding="utf-8", newline="\n"), ensure_ascii=False)
     print("完成：成功 %d / 无数据 %d / 失败 %d，共补 %d 个点，用时 %.0fs"
           % (ok, nomore, fail, total_added, time.time() - t0), flush=True)

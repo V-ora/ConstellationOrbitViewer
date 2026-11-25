@@ -14,6 +14,31 @@ import os, re, json, datetime as dt
 HERE = os.path.dirname(os.path.abspath(__file__))
 WS = os.path.dirname(HERE)   # 工作区根（只在开发机上存在，工程独立 clone 后没有）
 T0 = dt.date(2024, 8, 6)     # 千帆首次发射（仅用于文案/语义）
+
+def _parse_now(s):
+    """把 sat_hist 的 now 解析成 **UTC naive datetime**。
+
+    新格式 "2026-11-24T22:14Z" 直接按 UTC；
+    旧格式 "2026-11-24 22:14"（无时区，写方本地时间）按旧逻辑减本机偏移，保持向后兼容。
+    """
+    s = (s or "").strip()
+    if not s:
+        dd = _parse_now.__dict__.setdefault("_def", dt.datetime(1970, 1, 1))
+        return dd
+    if s.endswith("Z"):
+        for fmt in ("%Y-%m-%dT%H:%MZ", "%Y-%m-%dT%H:%M:%SZ"):
+            try:
+                return dt.datetime.strptime(s, fmt)
+            except ValueError:
+                pass
+    try:
+        loc = dt.datetime.strptime(s, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return dt.datetime(1970, 1, 1)
+    off = dt.datetime.now().astimezone().utcoffset() or dt.timedelta(hours=8)
+    return loc - off
+
+
 BASE0 = dt.date(2024, 1, 1)  # ★ 时间轴原点：必须与 data/sat_hist.json 的 t 一致
                              #   （库里 t = 距 2024-01-01 的天数；早前误用 T0 当原点，
                              #     导致整条时间轴错位 218 天、曲线末段被裁掉）
@@ -158,9 +183,7 @@ CARDS = '\n'.join(cards)
 data = dict(t0=BASE0.isoformat(),
             # ★ sat_hist.json 的 now 由 datetime.now() 写成（本地时间），本页时间轴是 UTC，
             #   统一换算成 UTC 后再显示，副标题文案也标了 UTC。
-            now=(dt.datetime.strptime(H.get('now') or '1970-01-01 00:00', '%Y-%m-%d %H:%M')
-                 - (dt.datetime.now().astimezone().utcoffset() or dt.timedelta(hours=8))
-                 ).strftime('%Y-%m-%d %H:%M'),
+            now=_parse_now(H.get('now')).strftime('%Y-%m-%d %H:%M'),
             target=TARGET, sats=sats, launches=launch_list, rockets=rocket_stat)
 
 HTML = r"""<!DOCTYPE html>

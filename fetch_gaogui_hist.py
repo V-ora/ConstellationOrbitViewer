@@ -69,7 +69,7 @@ def main():
     fp = os.path.join(HERE, "data", "sat_hist.json")
     hist = json.load(io.open(fp, encoding="utf-8"))
     sats = hist.setdefault("sats", {})
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     n_new = 0
     for catnr, meta in GAOGUI.items():
         old = sats.get(catnr)

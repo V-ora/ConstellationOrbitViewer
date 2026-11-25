@@ -436,7 +436,7 @@ def _hist_backfill_once(max_fetch=40):
         for n, e, alt in append_cands:
             n_app += _hist_append_pts(e, [[t_today, round(alt, 1)]])
         if n_app:
-            state["now"] = iso_local(now_local())
+            state["now"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
             _hist_save_extras(state)
             log("历史追加：%d 颗补上今天的数据点（曲线尾部 → 第 %.0f 天）" % (n_app, t_today))
 
@@ -473,7 +473,7 @@ def _hist_backfill_once(max_fetch=40):
             continue
         entry = _hist_entry_for(g_key, s, m_entry, daily)
         SAT_HIST["sats"][n] = entry      # 落盘时按基线快照自动判为「新星」，整条存进 extras
-        state["now"] = iso_local(now_local())
+        state["now"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
         n_new += 1
         _hist_save_extras(state)   # 逐星落盘，中途被杀不丢已抓数据
         log("历史补齐：%s（%s）+%d 点（%s ~ %s）"

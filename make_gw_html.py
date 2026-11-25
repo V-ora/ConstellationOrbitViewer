@@ -28,6 +28,31 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WS = os.path.dirname(HERE)
 
 T0 = dt.date(2024, 11, 25)      # ★ 本页时间轴原点（旧版沿用，勿改，否则整条时间轴错位）
+
+def _parse_now(s):
+    """把 sat_hist 的 now 解析成 **UTC naive datetime**。
+
+    新格式 "2026-11-24T22:14Z" 直接按 UTC；
+    旧格式 "2026-11-24 22:14"（无时区，写方本地时间）按旧逻辑减本机偏移，保持向后兼容。
+    """
+    s = (s or "").strip()
+    if not s:
+        dd = _parse_now.__dict__.setdefault("_def", dt.datetime(1970, 1, 1))
+        return dd
+    if s.endswith("Z"):
+        for fmt in ("%Y-%m-%dT%H:%MZ", "%Y-%m-%dT%H:%M:%SZ"):
+            try:
+                return dt.datetime.strptime(s, fmt)
+            except ValueError:
+                pass
+    try:
+        loc = dt.datetime.strptime(s, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return dt.datetime(1970, 1, 1)
+    off = dt.datetime.now().astimezone().utcoffset() or dt.timedelta(hours=8)
+    return loc - off
+
+
 BASE0 = dt.date(2024, 1, 1)     # data/sat_hist.json 里 t 的原点
 SHIFT = (T0 - BASE0).days       # 329：库里 t → 本页 t'
 MAXPTS = 520
@@ -101,10 +126,8 @@ print('倾角：本地 TLE 解析出 %d 颗' % len(INCL))
 # 现在时刻。★ sat_hist.json 的 now 由 datetime.now() 写成，是**本地时间**（北京），
 # 而本页时间轴与「数据截至」标注都是 UTC，所以这里必须先换算成 UTC 再写进 DATA，
 # 否则副标题会出现「17:19 UTC」这种差 8 小时的假标注。
-NOW_LOCAL = dt.datetime.strptime(H['now'], '%Y-%m-%d %H:%M')
-_off = dt.datetime.now().astimezone().utcoffset() or dt.timedelta(hours=8)
-NOW = (NOW_LOCAL - _off).replace(microsecond=0)
-NOWT = (NOW_LOCAL.date() - BASE0).days
+NOW = _parse_now(H.get('now')).replace(microsecond=0)
+NOWT = (NOW.date() - BASE0).days
 
 
 def alt_at(pts, t):

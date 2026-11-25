@@ -169,7 +169,7 @@ def main():
             e["name"] = e.get("name") or s["name"]
             sats[n] = e
             n_upd += 1
-            hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
             io.open(fp, "w", encoding="utf-8").write(json.dumps(hist, ensure_ascii=False, separators=(",", ":")))
             print("  %s %-32s %s -> %s (%d pts)%s" % (
                 n, s["name"][:32], old_last, pts[-1], len(pts),

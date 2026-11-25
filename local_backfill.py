@@ -116,7 +116,7 @@ def write_extras(appended, base_sats=None):
                     if b is not None and (state["sats"][k].get("pts") or []) == (b.get("pts") or []):
                         state["sats"].pop(k)
                         dropped += 1
-            state["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            state["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
             io.open(path, "w", encoding="utf-8").write(
                 json.dumps(state, ensure_ascii=False, separators=(",", ":")))
             print("已并入运行实例 -> %s（本次 %d 颗，%s，余 %d 颗，%.0f KB）"
@@ -261,7 +261,7 @@ def main():
     if not os.path.exists(BK):
         io.open(BK, "w", encoding="utf-8").write(io.open(FP, encoding="utf-8").read())
         print("备份 -> %s" % BK, flush=True)
-    hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     io.open(FP, "w", encoding="utf-8").write(
         json.dumps(hist, ensure_ascii=False, separators=(",", ":")))
     print("已写入 %s（now=%s，日期 %s）" % (FP, hist["now"], today.isoformat()), flush=True)

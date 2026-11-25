@@ -162,6 +162,35 @@ def offline():
         ok("C2 没有『发射很久但只有单点』的星")
 
 
+def check_now_clock():
+    """now 必须是 UTC 且接近当前时刻。
+
+    防的是这个老毛病：`now` 由 datetime.now()（跑脚本那台机器的本地时间）写成，
+    读方又按"读脚本那台机器的时区"去减偏移 —— 两台机器时区不同就整体偏 8 小时。
+    现在约定：写方一律 UTC + 结尾 Z；读方按 UTC 解析。
+    """
+    import datetime
+    hist = read_json(os.path.join(DATA, "sat_hist.json"), {})
+    s = (hist.get("now") or "").strip()
+    if not s:
+        warn("T1 sat_hist.now 为空")
+        return
+    if not s.endswith("Z"):
+        warn("T1 sat_hist.now=%r 没有 UTC 标记 Z（旧格式，读方可能按本机时区再减一次）" % s)
+        return
+    try:
+        t0 = datetime.datetime.strptime(s, "%Y-%m-%dT%H:%MZ")
+    except ValueError:
+        warn("T1 sat_hist.now=%r 格式不认识" % s)
+        return
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    gap = abs((now - t0).total_seconds()) / 3600.0
+    if gap > 6:
+        bad("T1 sat_hist.now=%s 与当前 UTC 相差 %.1f 小时（数据没更新，或时区又错了）" % (s, gap))
+    else:
+        ok("T1 sat_hist.now=%s 与当前 UTC 相差 %.1f 小时" % (s, gap))
+
+
 def online():
     """用 CelesTrak 组接口做**外部基准**：
        · A3 上游有、本地没有的 NORAD → 硬失败（漏星）
@@ -252,6 +281,7 @@ def main():
     offline_only = "--offline" in sys.argv
     print("数据完整性检查 %s" % os.path.basename(__file__))
     offline()
+    check_now_clock()
     if not offline_only:
         online()
     print("\n" + "=" * 62)

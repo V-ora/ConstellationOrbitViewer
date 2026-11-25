@@ -108,11 +108,11 @@ def main():
                 "pts": pts,
             }
             n_new += 1
-            hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
             io.open(fp, "w", encoding="utf-8").write(json.dumps(hist, ensure_ascii=False, separators=(",", ":")))
             print("    -> %d pts, %s ~ %s (saved)" % (len(pts), daily[0][0], daily[-1][0]))
             time.sleep(1.0)   # 对 CelesTrak 客气一点
-    hist["now"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    hist["now"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     io.open(fp, "w", encoding="utf-8").write(json.dumps(hist, ensure_ascii=False, separators=(",", ":")))
     print("done. new:", n_new, "total:", len(sats))
     sys.stdout.flush()
