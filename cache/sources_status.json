@@ -1,5 +1,5 @@
 {
- "ts": "2026-11-25T08:01:55Z",
+ "ts": "2026-11-25T21:30:10Z",
  "sources": {
   "huijiwiki": {
    "ok": false,
@@ -10,8 +10,8 @@
   "zh_wikipedia": {
    "ok": true,
    "http": 200,
-   "bytes": 9753,
-   "secs": 0.3,
+   "bytes": 9938,
+   "secs": 0.2,
    "sample": "{\"batchcomplete\":\"\",\"continue\":{\"sroffset\":10,\"continue\":\"-||\"},\"query\":{\"searchinfo\":{\"totalhits\":9096},\"search\":[{\"ns\"",
    "url": "https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=%E5%8D%83%E5%B8%86&format=json"
   },
@@ -19,7 +19,7 @@
    "ok": true,
    "http": 200,
    "bytes": 13819708,
-   "secs": 0.8,
+   "secs": 0.5,
    "sample": "#Launch_Tag\tLaunch_JD\tLaunch_Date\tLV_Type\tVariant\tFairing\tFlight_ID\tFlight\tMission\tFlightCode\tPlatform\tLaunch_Site\tLaunc",
    "url": "https://planet4589.org/space/gcat/tsv/launch/launch.tsv"
   },
